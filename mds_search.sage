@@ -1,17 +1,5 @@
 import itertools
 
-p = 2^64 - 2415919103  # Crandall prime
-k = GF(p)
-crandall_MDS = matrix(k, 8, 8,
-           [[16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838, 9223372035646816257, 1],
-            [2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838, 9223372035646816257],
-            [5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838],
-            [16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385],
-            [10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508],
-            [5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419],
-            [1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502],
-            [15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449]])
-
 def is_mds_slow(M, noisy=False):
     Mbar = matrix.block([[1], [M]]) # Put the identity matrix on top of M
     indices = itertools.combinations(range(Mbar.nrows()), M.nrows())
@@ -64,170 +52,83 @@ def is_mds_fast(A, noisy=False):
         det_cache = new_det_cache
     return True
 
+def is_mds_circ(row):
+    return is_mds_fast(Matrix.circulant(row))
 
-def is_mds_circulant(row):
+def is_binary_power(x):
+    x = int(x)
+    return (x == 1) or (x & (x - 1) == 0)
 
-    # 2-minors
-    new_det_cache = dict()
-    for rows in itertools.combinations(range(N), 2):
-        for cols in itertools.combinations(range(N), 2):
-            r1, r2 = rows
-            c1, c2 = cols
-
-            a = (c1 - r1) % N # (r1, c1)
-            b = (c2 - r1) % N # (r1, c2)
-            c = (c1 - r2) % N # (r2, c1)
-            d = (c2 - r2) % N # (r2, c2)
-
-            det = C.matrix_from_rows_and_columns(rows, cols).det()
-
-            assert det == row[a]*row[d] - row[b]*row[c]
-
-            if det == 0:
-                return f'FAILURE on 2-minor: rows={rows}, cols={cols}'
-            new_det_cache[(a, b, c, d)] = det
-
-    print('matrix has no zero 2-minors')
-
-    # 3-minors
-    new_det_cache = dict()
-    for rows in itertools.combinations(range(N), 3):
-        for cols in itertools.combinations(range(N), 3):
-            r1, r2, r3 = rows
-            c1, c2, c3 = cols
-
-            a = (c1 - r1) % N # (r1, c1)
-            b = (c2 - r1) % N # (r1, c2)
-            c = (c3 - r1) % N # (r1, c3)
-            d = (c1 - r2) % N # (r2, c1)
-            e = (c2 - r2) % N # (r2, c2)
-            f = (c3 - r2) % N # (r2, c3)
-            g = (c1 - r3) % N # (r3, c1)
-            h = (c2 - r3) % N # (r3, c2)
-            i = (c3 - r3) % N # (r3, c3)
-
-            det = C.matrix_from_rows_and_columns(rows, cols).det()
-
-            # Laplace expansion along row r1
-            det = C[r1, c1] * det_cache[(r2, r3, c2, c3)] \
-                - C[r1, c2] * det_cache[(r2, r3, c1, c3)] \
-                + C[r1, c3] * det_cache[(r2, r3, c1, c2)]
-
-            if det == 0:
-                return False
-            new_det_cache[(*rows, *cols)] = det
-
-
-def reduce_mds(MM):
-    assert is_mds(MM)
-
-    M = matrix(MM)
-    for i in range(M.nrows()):
-        for j in range(M.ncols()):
-            N = matrix(M)
-            while N[i,j] > 16:
-                N[i,j] = N[i,j] >> 4
-                if is_mds(N):
-                    M = matrix(N)
-                else:
-                    break
-            print(f'After {i}, {j}:\n{M}')
-    return M
-
-
-def reduce_circulant_mds(init_row, rate_bits=16):
+def make_binary_powers(init_row):
     C = Matrix.circulant(init_row)
     k = C.base_ring()
     assert is_mds_fast(C)
     N = len(init_row)
 
     # ones first:
-    for cols in itertools.combinations(range(N), 4):
+    for cols in itertools.combinations(range(N), 3):
         row = copy(init_row)
         for c in cols:
             row[c] = k(1)
-        if is_mds_fast(Matrix.circulant(row)):
+        if is_mds_circ(row):
             print(f'row: {row}')
+            break
 
-    row = copy(init_row)
-    for j in range(len(row)):
-        while row[j] > (1 << rate_bits):
-            rj = row[j]
-            row[j] = row[j] >> rate_bits
-            if not is_mds_fast(Matrix.circulant(row)):
-                row[j] = rj  # restore row
+    for j in range(N):
+        if is_binary_power(row[j]):
+            continue
+        e = 1
+        while True:
+            row[j] = k(1 << e)
+            if is_mds_circ(row):
+                print(f'row: {row}')
                 break
-        print(f'After {j}:\n{row}')
+            e += 1
+
     return row
 
-
-row0 = [4, 1, 2, 9, 10, 5, 1, 1]
-row0 = [4, 1, 2, 256, 16, 8, 1, 1]
-C = matrix.circulant(row0)
-C = C.change_ring(k)
-
-#print('C is MDS?', is_mds(C))
-
-# row0 = [4, 1, 2, 256, 16, 8, 1, 1, 12345, 6789, 1111, 4321]
-# D = matrix.circulant(row0)
-# D = D.change_ring(k)
-# print('D is MDS?', is_mds(D))
-# #print('reduction:', reduce_mds2(D))
+def random_circulant_mds(k, n):
+    ntries = 0
+    while True:
+        random_row = [k.random_element() for _ in range(n)]
+        C = Matrix.circulant(random_row)
+        assert C.base_ring() == k
+        ntries += 1
+        if is_mds_fast(C):
+            return C.row(0)
+        if ntries % 100 == 0:
+            print(f'Continuing after {ntries} tries')
 
 
-def do_thing(mat_rows, submat_rows):
-    N = mat_rows
-    n = submat_rows
-    assert n < N
+###
+### Crandall field
+###
 
-    # A is a tuple of indeterminates a_0, ..., a_{N-1}
-    A = var(','.join(map(lambda i: f'a{i}', range(N))))
-    #A = primes_first_n(N)
-    C = Matrix.circulant(A)
+crandall_prime = 2^64 - 2415919103
+crandall_field = GF(crandall_prime)
 
-    M = [C.matrix_from_rows_and_columns(rows, cols)
-        for rows in itertools.combinations(range(N), n)
-        for cols in itertools.combinations(range(N), n)]
-    print(f'total submatrices:        {len(M):5}')
+crandall_small_mds8 = vector(crandall_field, [4, 1, 2, 9, 10, 5, 1, 1])
+crandall_binary_mds8 = vector(crandall_field, [4, 1, 2, 256, 16, 8, 1, 1])
+# print('crandall_small_mds8 is MDS?', is_mds_circ(crandall_small_mds8))
+# print('crandall_binary_mds8 is MDS?', is_mds_circ(crandall_binary_mds8))
 
-    for m in M:
-        m.set_immutable()
-    MM = set(M)
-    t = Integer(len(MM))
-    print(f'unique submatrices:       {t:5}   {t.factor()}')
-
-    D = set(m.det() for m in M)
-    t = Integer(len(D))
-    print(f'unique minors:            {t:5}   {t.factor()}')
-
-    E = set()
-    for d in D:
-        if d not in E and -d not in E:
-            E.add(d)
-    t = Integer(len(E))
-    print(f'unique minors up to sign: {t:5}   {t.factor()}')
+crandall_small_mds12 = vector(crandall_field, [9, 7, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
+crandall_binary_mds12 = vector(crandall_field, [1024, 8192, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
+# print('crandall_small_mds12 is MDS?', is_mds_circ(crandall_small_mds12))
+# print('crandall_binary_mds12 is MDS?', is_mds_circ(crandall_binary_mds12))
 
 
+###
+### Goldilocks field
+###
 
-rescue_MDS = matrix(k, 12, 12,
-    [[10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838, 9223372035646816257, 1,],
-    [5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838, 9223372035646816257,],
-    [1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385, 6148914690431210838,],
-    [15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508, 13835058053470224385,],
-    [17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419, 11068046442776179508,],
-    [3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502, 3074457345215605419,],
-    [1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449, 2635249153041947502,],
-    [9708812669101911849, 1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946, 16140901062381928449,],
-    [2767011610694044877, 9708812669101911849, 1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754, 2049638230143736946,],
-    [878416384347315834, 2767011610694044877, 9708812669101911849, 1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921, 5534023221388089754,],
-    [17608255704416649217, 878416384347315834, 2767011610694044877, 9708812669101911849, 1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966, 16769767337539665921,],
-    [15238614667590392076, 17608255704416649217, 878416384347315834, 2767011610694044877, 9708812669101911849, 1024819115071868473, 3255307777287111620, 17293822566837780481, 15987178195121148178, 1317624576520973751, 5675921252705733081, 10760600708254618966]])
+goldilocks_prime = 2^64 - 2^32 + 1
+goldilocks_field = GF(goldilocks_prime)
 
-#is_mds_fast(M, noisy=True)
+# Produced with make_binary_powers(random_circulant_mds(goldilocks_field, 8))
+goldilocks_mds8 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 4, 256])
+# print('goldilocks_mds8 is MDS?', is_mds_circ(goldilocks_mds8))
 
-row12 = [9, 7, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1]
-row12 = [1024, 8192, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1]
-
-C = Matrix.circulant(row12)
-C = C.change_ring(k)
-
+# Produced with make_binary_powers(random_circulant_mds(goldilocks_field, 12))
+goldilocks_mds12 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024])
+# print('goldilocks_mds12 is MDS?', is_mds_circ(goldilocks_mds12))
