@@ -81,56 +81,30 @@ def calc_final_numbers_fixed(p, t, alpha, M, security_margin):
 
     return ret_list # [R_F, R_P, min_sbox_cost, min_size_cost]
 
-# Single tests
+def print_round_numbers(primes, monomial_bound = 12, state_widths = [8, 12]):
+    print('Number of Poseidon rounds for 128 bit security margin: [full rounds, partial rounds, min. sbox cost, min size cost]\n')
+    for name, prime in primes:
+        print('  Prime: {} = 0x{:X}'.format('<noname>' if len(name) == 0 else name, prime))
+        for alpha in range(3, monomial_bound, 2):
+            print(f'    Monomial degree {alpha}', end='')
+            if (prime - 1) % alpha == 0:
+                print(f'... skipping as {alpha} divides p-1')
+                continue
+            print('')
+            for width in state_widths:
+                print(f'      state width {width:3}:   ',
+                      calc_final_numbers_fixed(prime, width, alpha, 128, True))
+        print('')
 
-# print(calc_final_numbers_fixed(Crypto.Util.number.getPrime(255), 3, 5, 128, True))
-# print(calc_final_numbers_fixed(Crypto.Util.number.getPrime(255), 6, 5, 128, True))
-# print(calc_final_numbers_fixed(Crypto.Util.number.getPrime(254), 3, 5, 128, True))
-# print(calc_final_numbers_fixed(Crypto.Util.number.getPrime(254), 6, 5, 128, True))
-# print(calc_final_numbers_fixed(Crypto.Util.number.getPrime(64), 24, 3, 128, True))
+if __name__ == "__main__":
+    crandall_prime = ('Crandall', 2**64 - 9 * 2**28 + 1)
+    goldilocks_prime = ('Goldilocks', 2**64 - 2**32 + 1)
+    primes = [crandall_prime, goldilocks_prime]
 
-prime = 2**64 - 9 * 2**28 + 1
-for alpha in [3, 5, 7, 9]:
-    print(f'monomial degree {alpha}, width 8: ', calc_final_numbers_fixed(prime, 8, alpha, 128, True))
-    print(f'monomial degree {alpha}, width 12:', calc_final_numbers_fixed(prime, 12, alpha, 128, True))
+    if len(sys.argv) > 1:
+        p = sys.argv[1]
+        #if not p.is_prime():
+        #    print('Argument {p} is not prime')
+        primes = [('', p)]
 
-# # x^5 (254-bit prime number)
-# #prime = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
-# x_5_combinations = [
-#     [1536, 2, 128], [1536, 4, 128], [1536, 6, 128], [1536, 8, 128], [1536, 16, 128],
-#     [1536, 2, 256], [1536, 4, 256], [1536, 6, 256], [1536, 8, 256], [1536, 16, 256]
-# ]
-
-# # With security margin
-# print("--- Table x^5 WITH security margin ---")
-# print_latex_table_combinations(x_5_combinations, 5, True)
-
-# # Without security margin
-# print("--- Table x^5 WITHOUT security margin ---")
-# print_latex_table_combinations(x_5_combinations, 5, False)
-
-# x_3_combinations = [
-#     [1536, 2, 128], [1536, 4, 128], [1536, 6, 128], [1536, 8, 128], [1536, 16, 128],
-#     [1536, 2, 256], [1536, 4, 256], [1536, 6, 256], [1536, 8, 256], [1536, 16, 256]
-# ]
-
-# # With security margin
-# print("--- Table x^3 WITH security margin ---")
-# print_latex_table_combinations(x_3_combinations, 3, True)
-
-# # Without security margin
-# print("--- Table x^3 WITHOUT security margin ---")
-# print_latex_table_combinations(x_3_combinations, 3, False)
-
-# x_inv_combinations = [
-#     [1536, 2, 128], [1536, 4, 128], [1536, 6, 128], [1536, 8, 128], [1536, 16, 128],
-#     [1536, 2, 256], [1536, 4, 256], [1536, 6, 256], [1536, 8, 256], [1536, 16, 256]
-# ]
-
-# # With security margin
-# print("--- Table x^(-1) WITH security margin ---")
-# print_latex_table_combinations(x_inv_combinations, -1, True)
-
-# # Without security margin
-# print("--- Table x^(-1) WITHOUT security margin ---")
-# print_latex_table_combinations(x_inv_combinations, -1, False)
+    print_round_numbers(primes)
