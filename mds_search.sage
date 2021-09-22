@@ -142,25 +142,24 @@ def random_circulant_mds(k, n, noisy=True):
 crandall_prime = 2^64 - 2415919103
 crandall_field = GF(crandall_prime)
 
-# These two were 'manually crafted'; not necessary better, just from
-# an earlier version.
+## These four were 'manually crafted'; not necessary better, just from
+## an earlier version.
 crandall_small_manual_mds8 = vector(crandall_field, [4, 1, 2, 9, 10, 5, 1, 1])
 crandall_binary_manual_mds8 = vector(crandall_field, [4, 1, 2, 256, 16, 8, 1, 1])
 #print('crandall_small_manual_mds8 is MDS?', is_mds_circ(crandall_small_manual_mds8))
 #print('crandall_binary_manual_mds8 is MDS?', is_mds_circ(crandall_binary_manual_mds8))
 
+crandall_small_manual_mds12 = vector(crandall_field, [9, 7, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
+crandall_binary_manual_mds12 = vector(crandall_field, [1024, 8192, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
+#print('crandall_small_mds12 is MDS?', is_mds_circ(crandall_small_manual_mds12))
+#print('crandall_binary_mds12 is MDS?', is_mds_circ(crandall_binary_manual_mds12))
+
+## Produced with:
 # make_binary_powers(random_circulant_mds(crandall_field, 8)) produces
 crandall_binary_mds8 = vector(crandall_field, [1, 1, 2, 1, 8, 32, 4, 256])
 crandall_binary_mds12 = vector(crandall_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024])
 #print('crandall_small_mds8 is MDS?', is_mds_circ(crandall_small_mds8))
 #print('crandall_binary_mds8 is MDS?', is_mds_circ(crandall_binary_mds8))
-
-# These two were 'manually crafted'; not necessary better, just from
-# an earlier version.
-crandall_small_manual_mds12 = vector(crandall_field, [9, 7, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
-crandall_binary_manual_mds12 = vector(crandall_field, [1024, 8192, 4, 1, 16, 2, 256, 128, 3, 32, 1, 1])
-#print('crandall_small_mds12 is MDS?', is_mds_circ(crandall_small_manual_mds12))
-#print('crandall_binary_mds12 is MDS?', is_mds_circ(crandall_binary_manual_mds12))
 
 
 ###
