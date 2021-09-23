@@ -424,35 +424,42 @@ if __name__ == "__main__":
     import sys
 
     crandall_prime = 2^64 - 9 * 2^28 + 1
-    crandall_mds = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
+    crandall_mds8 = [1, 1, 2, 1, 8, 32, 4, 256]
+    crandall_mds12 = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
 
     goldilocks_prime = 2^64 - 2^32 + 1
-    goldilocks_mds = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
+    goldilocks_mds8 = [1, 1, 2, 1, 8, 32, 4, 256]
+    goldilocks_mds12 = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
 
     prime = crandall_prime
-    mds_matrix_12 = crandall_mds
+    mds_matrix8 = crandall_mds8
+    mds_matrix12 = crandall_mds12
     if len(sys.argv) > 1:
         if sys.argv[1] == 'crandall':
             pass
         elif sys.argv[1] == 'goldilocks':
             prime = goldilocks_prime
-            mds_matrix_12 = goldilocks_mds
+            mds_matrix8 = goldilocks_mds8
+            mds_matrix12 = goldilocks_mds12
         else:
             print('Please specify either crandall or goldilocks')
             exit()
 
     state_width = 8
+    mds_row = mds_matrix8
     if len(sys.argv) > 2:
         state_width = int(sys.argv[2])
-    if state_width > 12:
+    if state_width != 8 and state_width != 12:
         raise ValueError(state_width)
+    if state_width == 12:
+        mds_row = mds_matrix12
 
     R_F = 8
     R_P = 22
     sbox_exp = 7
     field = GF(prime)
 
-    mds_matrix = matrix.circulant(vector(field, mds_matrix_12)).submatrix(0, 0, state_width, state_width)
+    mds_matrix = matrix.circulant(vector(field, mds_row))
     hash_data = PoseidonData(mds_matrix, sbox_exp, R_F, R_P)
 
     test_consistency(hash_data)
