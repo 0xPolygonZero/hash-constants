@@ -346,8 +346,7 @@ def test_consistency(hash_data):
         vector(F, [0]*t),     # Test input [0, 0, ..., 0]
         vector(F, [F(-1)]*t), # Test input [p-1, ..., p-1]
         vector(F, range(t)),  # Test input [0, 1, ..., t-1]
-        vector(F, [0xb69ed321abbeffbb, 0xfb496d8c39b64e42, 0x274f1cfbb925c789, 0x9e846d2b9a56b834,
-                   0xc7f297c0d48bc3b6, 0xb859ab1e45850a0a, 0x3244fe3bcb1244cb, 0xb98e1cfa647575de])]
+        vector(F, [F.random_element() for _ in range(t)])]
 
     for input_words in inputs:
         orig_output = poseidon_original(input_words, hash_data)
@@ -389,7 +388,7 @@ def print_fast_partial_consts(hash_data):
         val = int(round_consts[R_f][i])
         print(f'0x{val:016x}, ', end='')
         cnt += 1
-    print(f'\n{indent}];\n')
+    print(f'\n{indent}];')
 
     print(f'\n{indent}const FAST_PARTIAL_ROUND_CONSTANTS: [u64; N_PARTIAL_ROUNDS]  = [', end='')
     cnt = 0
