@@ -436,7 +436,7 @@ if __name__ == "__main__":
             pass
         elif sys.argv[1] == 'goldilocks':
             prime = goldilocks_prime
-            mds_matrix = goldilocks_mds
+            mds_matrix_12 = goldilocks_mds
         else:
             print('Please specify either crandall or goldilocks')
             exit()
