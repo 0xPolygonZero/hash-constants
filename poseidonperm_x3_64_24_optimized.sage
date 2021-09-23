@@ -3,19 +3,8 @@
 # https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/659de89cd207e19b92852458dce92adf83ad7cf7/code/poseidonperm_x3_64_24_optimized.sage
 #
 
-
-import time
-
-t = 8
-R_F = 8
-R_P = 22
-prime = 2^64 - 9 * 2^28 + 1
-assert prime == 2^64 - 2415919103  # Crandall prime
-F = GF(prime)
-sbox_exp = 7
-
 # These come from ChaCha initialised with 0.
-round_constants = list(map(F, [
+ROUND_CONSTANTS = [
     0xb585f767417ee042, 0x7746a55f77c10331, 0xb2fb0d321d356f7a, 0x0f6760a486f1621f,
     0xe10d6666b36abcdf, 0x8cae14cb455cc50b, 0xd438539cf2cee334, 0xef781c7d4c1fd8b4,
     0xcdc4a23a0aca4b1f, 0x277fa208d07b52e3, 0xe17653a300493d38, 0xc54302f27c287dc1,
@@ -166,42 +155,50 @@ round_constants = list(map(F, [
     0x3a2a0ee62af22976, 0xc8096652ef57770c, 0x05e4ac783c617e58, 0x110882dca4469dd0,
     0xa734a6eb1f3af377, 0x95aa6b8cde4cc08b, 0x26170051bd7578cf, 0x61057afa25097f67,
     0x8f8a175ae3cd602c, 0x87a3ce5607bd038f, 0x4b0e54c0dc1d3718, 0xb1e7485936f01ba9,
-]))
+]
 
-MDS_matrix_12 = matrix.circulant([1024, 8192, 4, 1, 16, 2, 256, 128, 32768, 32, 1, 1]).change_ring(F)
-MDS_matrix_8 = matrix.circulant([4, 1, 2, 256, 16, 8, 1, 1]).change_ring(F)  # exps: [2, 0, 1, 8, 4, 3, 0, 0]
+class PoseidonData:
+    def __init__(self, mds_matrix, sbox_exp, n_full_rounds, n_partial_rounds):
+        assert mds_matrix.is_square()
+        self.mds_matrix = mds_matrix
+        self.state_width = self.mds_matrix.nrows()
 
-if t == 8:
-    MDS_matrix = MDS_matrix_8
-elif t == 12:
-    MDS_matrix = MDS_matrix_12
-elif t > 12:
-    raise ValueError(t)
-else:
-    MDS_matrix = MDS_matrix_12.submatrix(0, 0, t, t) # NO-OP
+        assert self.mds_matrix.base_ring().is_field(), 'matrix elements must be in a field'
+        self.field = self.mds_matrix.base_ring()
+
+        assert (self.field.cardinality() - 1) % sbox_exp != 0, 'sbox exponent must not divide p-1'
+        self.sbox_exp = sbox_exp
+
+        self.n_full_rounds = n_full_rounds
+        self.n_partial_rounds = n_partial_rounds
+        # This chunks the round_constants array into blocks of size state_width.
+        self.round_constants = [vector(self.field, ROUND_CONSTANTS[index:index + self.state_width])
+                                for index in range(0, len(ROUND_CONSTANTS), self.state_width)]
+        self.round_constants_fast = calc_equivalent_constants(self)
+        self.precomp_constants_fast = calc_equivalent_matrices(self)
 
 #MDS_matrix = MDS_matrix.transpose() # QUICK FIX TO CHANGE MATRIX MUL ORDER (BOTH M AND M^T ARE SECURE HERE!)
 
-def calc_equivalent_constants(constants):
-    # This takes the long list constants and splits it into chunks of size t
-    constants_temp = [vector(constants[index:index+t]) for index in range(0, len(constants), t)]
+def calc_equivalent_constants(hash_data):
+    constants_temp = list(hash_data.round_constants)
 
-    MDS_matrix_t = MDS_matrix.transpose()
+    MDS_matrix_t = hash_data.mds_matrix.transpose()
+    inv_MDS = MDS_matrix_t.inverse()
 
     # Start moving round constants up
     # Calculate c_i' = M^(-1) * c_(i+1)
     # Split c_i': Add c_i'[0] AFTER the S-box, add the rest to c_i
     # I.e.: Store c_i'[0] for each of the partial rounds, and make c_i = c_i + c_i' (where now c_i'[0] = 0)
-    num_rounds = R_F + R_P
-    R_f = R_F / 2
+    num_rounds = hash_data.n_full_rounds + hash_data.n_partial_rounds
+    R_f = hash_data.n_full_rounds // 2
     for i in range(num_rounds - 2 - R_f, R_f - 1, -1):
-        inv_cip1 = constants_temp[i+1] * MDS_matrix_t.inverse()
+        inv_cip1 = constants_temp[i+1] * inv_MDS
         constants_temp[i] = constants_temp[i] + vector([0] + inv_cip1[1:].list())
-        constants_temp[i+1] = vector([inv_cip1[0]] + [0] * (t-1))
+        constants_temp[i+1] = vector([inv_cip1[0]] + [0] * (hash_data.state_width - 1))
 
     return constants_temp
 
-def calc_equivalent_matrices():
+def calc_equivalent_matrices(hash_data):
     # Following idea: Split M into M' * M'', where M'' is "cheap" and
     # M' can move before the partial nonlinear layer
     #
@@ -212,15 +209,15 @@ def calc_equivalent_matrices():
     # Thus: Compute the matrices, store the w_hat and v values
 
     # HL: TODO: why is this transposed?
-    MDS_matrix_t = MDS_matrix.transpose()
+    MDS_matrix_t = hash_data.mds_matrix.transpose()
 
     w_hats = []
     vs = []
 
     M_mul = MDS_matrix_t
-    M_i = matrix(F, t, t) # == zero
+    M_i = matrix(hash_data.field, hash_data.state_width, hash_data.state_width) # == zero
 
-    for i in range(R_P - 1, -1, -1):
+    for i in range(hash_data.n_partial_rounds - 1, -1, -1):
         M_hat = M_mul.submatrix(1, 1)
 
         w = vector(M_mul[1:, 0])  # M_mul.submatrix(row=1, col=0, ncols=1)
@@ -258,79 +255,69 @@ def cheap_matrix_mul(state, v, w_hat, M_00):
     # new s0 = [M_00 | w^] dot [state]
     return vector([col * state] + rest.list())
 
-def full_rounds(R_f, state, round_consts, round_ctr):
+def full_rounds(state, round_ctr, hash_data):
+    R_f = hash_data.n_full_rounds // 2
     for r in range(0, R_f):
         # Round constants, nonlinear layer, matrix multiplication
-        state += round_consts[round_ctr]
-        for i in range(0, t):
-            state[i] = state[i]^sbox_exp
+        state += hash_data.round_constants[round_ctr]
+        for i in range(0, hash_data.state_width):
+            state[i] = state[i]^hash_data.sbox_exp
 
-        state = MDS_matrix * state
+        state = hash_data.mds_matrix * state
         round_ctr += 1
     return state, round_ctr
 
-def partial_rounds_orig(R_P, state, round_consts, round_ctr):
-    for r in range(0, R_P):
+def partial_rounds_orig(state, round_ctr, hash_data):
+    for r in range(0, hash_data.n_partial_rounds):
         # Round constants, nonlinear layer, matrix multiplication
-        state += round_consts[round_ctr]
-        state[0] = state[0]^sbox_exp
-        state = MDS_matrix * state
+        state += hash_data.round_constants[round_ctr]
+        state[0] = state[0]^hash_data.sbox_exp
+        state = hash_data.mds_matrix * state
         round_ctr += 1
     return state, round_ctr
 
-def partial_rounds_fast(R_P, state, round_consts, round_ctr, fast_precomp):
-    M_i, vs, w_hats, M_00 = fast_precomp
+def partial_rounds_fast(state, round_ctr, hash_data):
+    M_i, vs, w_hats, M_00 = hash_data.precomp_constants_fast
 
     # Initial constants addition
-    state += round_consts[round_ctr]
+    state += hash_data.round_constants_fast[round_ctr]
 
     # First full matrix multiplication
     state = state * M_i
-    for r in range(0, R_P):
+    for r in range(0, hash_data.n_partial_rounds):
         # Round constants, nonlinear layer, matrix multiplication
-        state[0] = state[0]^sbox_exp
+        state[0] = state[0]^hash_data.sbox_exp
 
         # Moved constants addition
-        if r < (R_P - 1):
+        if r < (hash_data.n_partial_rounds - 1):
             round_ctr += 1
-            state[0] = state[0] + round_consts[round_ctr][0]
+            state[0] = state[0] + hash_data.round_constants_fast[round_ctr][0]
         # Optimized multiplication with cheap matrices
         state = cheap_matrix_mul(state, vs[r], w_hats[r], M_00)
     round_ctr += 1
     return state, round_ctr
 
-def poseidon(init_state):
-    round_consts = calc_equivalent_constants(round_constants)
-    fast_precomp = calc_equivalent_matrices()
-
-    global timer_start, timer_end
-    timer_start = time.time()
-    R_f = int(R_F / 2)
+def poseidon(init_state, hash_data):
+    assert len(init_state) == hash_data.state_width, \
+        f'expected initial state length of {hash_data.state_width} but it was {len(init_state)}'
     round_ctr = 0
 
     state = init_state
-    state, round_ctr = full_rounds(R_f, state, round_consts, round_ctr)
-    state, round_ctr = partial_rounds_fast(R_P, state, round_consts, round_ctr, fast_precomp)
-    state, round_ctr = full_rounds(R_f, state, round_consts, round_ctr)
+    state, round_ctr = full_rounds(state, round_ctr, hash_data)
+    state, round_ctr = partial_rounds_fast(state, round_ctr, hash_data)
+    state, round_ctr = full_rounds(state, round_ctr, hash_data)
 
-    timer_end = time.time()
-    
     return state
 
-def poseidon_original(init_state):
-    global timer_start, timer_end
-    timer_start = time.time()
-
-    R_f = int(R_F / 2)
-    round_consts = [vector(round_constants[index:index+t]) for index in range(0, len(round_constants), t)]
+def poseidon_original(init_state, hash_data):
+    assert len(init_state) == hash_data.state_width, \
+        f'expected initial state length of {hash_data.state_width} but it was {len(init_state)}'
     round_ctr = 0
 
     state = init_state
-    state, round_ctr = full_rounds(R_f, state, round_consts, round_ctr)
-    state, round_ctr = partial_rounds_orig(R_P, state, round_consts, round_ctr)
-    state, round_ctr = full_rounds(R_f, state, round_consts, round_ctr)
-
-    timer_end = time.time()
+    state, round_ctr = full_rounds(state, round_ctr, hash_data)
+    state, round_ctr = partial_rounds_orig(state, round_ctr, hash_data)
+    state, round_ctr = full_rounds(state, round_ctr, hash_data)
 
     return state
 
@@ -345,7 +332,9 @@ def print_hex_vectlst(vs, indent=''):
         print('],')
 
 
-def test_consistency():
+def test_consistency(hash_data):
+    F = hash_data.field
+    t = hash_data.state_width
     inputs = [
         vector(F, [0]*t),     # Test input [0, 0, ..., 0]
         vector(F, [F(-1)]*t), # Test input [p-1, ..., p-1]
@@ -354,12 +343,16 @@ def test_consistency():
                    0xc7f297c0d48bc3b6, 0xb859ab1e45850a0a, 0x3244fe3bcb1244cb, 0xb98e1cfa647575de])]
 
     for input_words in inputs:
-        orig_output = poseidon_original(input_words)
-        fast_output = poseidon(input_words)
+        orig_output = poseidon_original(input_words, hash_data)
+        fast_output = poseidon(input_words, hash_data)
         assert orig_output == fast_output
 
-def print_fast_partial_consts():
-    round_consts = calc_equivalent_constants(round_constants)
+def print_fast_partial_consts(hash_data):
+    round_consts = hash_data.round_constants_fast
+    F = hash_data.field
+    t = hash_data.state_width
+    R_F = hash_data.n_full_rounds
+    R_P = hash_data.n_partial_rounds
 
     indent = '    '
     R_f = R_F // 2
@@ -373,7 +366,6 @@ def print_fast_partial_consts():
         cnt += 1
     print(f'\n{indent}];\n')
 
-    #print('round_consts = ')
     print(f'\n{indent}const FAST_PARTIAL_ROUND_CONSTANTS: [u64; N_PARTIAL_ROUNDS - 1]  = [', end='')
     cnt = 0
     for i, rc in enumerate(round_consts):
@@ -387,24 +379,36 @@ def print_fast_partial_consts():
             cnt += 1
     print(f'\n{indent}];\n')
 
-    M_i, vs, w_hats, M_00 = calc_equivalent_matrices()
+    M_i, vs, w_hats, M_00 = hash_data.precomp_constants_fast
 
-    #print(f'vs ({len(vs)}):')
     print(f'{indent}const FAST_PARTIAL_ROUND_VS: [[u64; WIDTH - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(vs, indent)
     print(f'\n{indent}];\n')
 
-    #print(f'\nw_hats ({len(w_hats)}):')
     print(f'{indent}const FAST_PARTIAL_ROUND_W_HATS: [[u64; WIDTH - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(w_hats, indent)
     print(f'\n{indent}];\n')
 
-    #print('\nM_i:')
     print(f'{indent}// NB: This is in COLUMN-major order to support cache-friendly pre-multiplication.')
     print(f'{indent}const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; WIDTH - 1]; WIDTH - 1] = [')
     print_hex_vectlst(M_i.submatrix(1,1).columns(), indent)
     print(f'\n{indent}];\n')
 
 if __name__ == "__main__":
-    test_consistency()
-    print_fast_partial_consts()
+    R_F = 8
+    R_P = 22
+    crandall_prime = 2^64 - 9 * 2^28 + 1
+    crandall_field = GF(crandall_prime)
+    sbox_exp = 7
+
+    state_width = 8
+    if state_width > 12:
+        raise ValueError(state_width)
+
+    crandall_binary_mds12 = matrix.circulant(
+        vector(crandall_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]))
+    MDS_matrix = crandall_binary_mds12.submatrix(0, 0, state_width, state_width)
+    hash_data = PoseidonData(MDS_matrix, sbox_exp, R_F, R_P)
+
+    test_consistency(hash_data)
+    print_fast_partial_consts(hash_data)
