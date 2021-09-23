@@ -157,6 +157,7 @@ ROUND_CONSTANTS = [
     0x8f8a175ae3cd602c, 0x87a3ce5607bd038f, 0x4b0e54c0dc1d3718, 0xb1e7485936f01ba9,
 ]
 
+
 class PoseidonData:
     def __init__(self, mds_matrix, sbox_exp, n_full_rounds, n_partial_rounds):
         assert mds_matrix.is_square()
@@ -197,6 +198,7 @@ def calc_equivalent_constants(hash_data):
         constants_temp[i+1] = vector([inv_cip1[0]] + [0] * (hash_data.state_width - 1))
 
     return constants_temp
+
 
 def calc_equivalent_matrices(hash_data):
     # Following idea: Split M into M' * M'', where M'' is "cheap" and
@@ -255,6 +257,7 @@ def cheap_matrix_mul(state, v, w_hat, M_00):
     # new s0 = [M_00 | w^] dot [state]
     return vector([col * state] + rest.list())
 
+
 def full_rounds(state, round_ctr, hash_data):
     R_f = hash_data.n_full_rounds // 2
     for r in range(0, R_f):
@@ -267,6 +270,7 @@ def full_rounds(state, round_ctr, hash_data):
         round_ctr += 1
     return state, round_ctr
 
+
 def partial_rounds_orig(state, round_ctr, hash_data):
     for r in range(0, hash_data.n_partial_rounds):
         # Round constants, nonlinear layer, matrix multiplication
@@ -275,6 +279,7 @@ def partial_rounds_orig(state, round_ctr, hash_data):
         state = hash_data.mds_matrix * state
         round_ctr += 1
     return state, round_ctr
+
 
 def partial_rounds_fast(state, round_ctr, hash_data):
     M_i, vs, w_hats, M_00 = hash_data.precomp_constants_fast
@@ -297,6 +302,7 @@ def partial_rounds_fast(state, round_ctr, hash_data):
     round_ctr += 1
     return state, round_ctr
 
+
 def poseidon(init_state, hash_data):
     assert len(init_state) == hash_data.state_width, \
         f'expected initial state length of {hash_data.state_width} but it was {len(init_state)}'
@@ -308,6 +314,7 @@ def poseidon(init_state, hash_data):
     state, round_ctr = full_rounds(state, round_ctr, hash_data)
 
     return state
+
 
 def poseidon_original(init_state, hash_data):
     assert len(init_state) == hash_data.state_width, \
@@ -346,6 +353,7 @@ def test_consistency(hash_data):
         orig_output = poseidon_original(input_words, hash_data)
         fast_output = poseidon(input_words, hash_data)
         assert orig_output == fast_output
+
 
 def print_fast_partial_consts(hash_data):
     round_consts = hash_data.round_constants_fast
@@ -394,21 +402,41 @@ def print_fast_partial_consts(hash_data):
     print_hex_vectlst(M_i.submatrix(1,1).columns(), indent)
     print(f'\n{indent}];\n')
 
+
 if __name__ == "__main__":
-    R_F = 8
-    R_P = 22
+    import sys
+
     crandall_prime = 2^64 - 9 * 2^28 + 1
-    crandall_field = GF(crandall_prime)
-    sbox_exp = 7
+    crandall_mds = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
+
+    goldilocks_prime = 2^64 - 2^32 + 1
+    goldilocks_mds = [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]
+
+    prime = crandall_prime
+    mds_matrix_12 = crandall_mds
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'crandall':
+            pass
+        elif sys.argv[1] == 'goldilocks':
+            prime = goldilocks_prime
+            mds_matrix = goldilocks_mds
+        else:
+            print('Please specify either crandall or goldilocks')
+            exit()
 
     state_width = 8
+    if len(sys.argv) > 2:
+        state_width = int(sys.argv[2])
     if state_width > 12:
         raise ValueError(state_width)
 
-    crandall_binary_mds12 = matrix.circulant(
-        vector(crandall_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024]))
-    MDS_matrix = crandall_binary_mds12.submatrix(0, 0, state_width, state_width)
-    hash_data = PoseidonData(MDS_matrix, sbox_exp, R_F, R_P)
+    R_F = 8
+    R_P = 22
+    sbox_exp = 7
+    field = GF(prime)
+
+    mds_matrix = matrix.circulant(vector(field, mds_matrix_12)).submatrix(0, 0, state_width, state_width)
+    hash_data = PoseidonData(mds_matrix, sbox_exp, R_F, R_P)
 
     test_consistency(hash_data)
     print_fast_partial_consts(hash_data)
