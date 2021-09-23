@@ -1,3 +1,9 @@
+#
+# This file is based on the Poseidon implementation at
+# https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/659de89cd207e19b92852458dce92adf83ad7cf7/code/poseidonperm_x3_64_24_optimized.sage
+#
+
+
 import time
 
 t = 8
@@ -8,9 +14,7 @@ assert prime == 2^64 - 2415919103  # Crandall prime
 F = GF(prime)
 sbox_exp = 7
 
-timer_start = 0
-timer_end = 0
-
+# These come from ChaCha initialised with 0.
 round_constants = list(map(F, [
     0xb585f767417ee042, 0x7746a55f77c10331, 0xb2fb0d321d356f7a, 0x0f6760a486f1621f,
     0xe10d6666b36abcdf, 0x8cae14cb455cc50b, 0xd438539cf2cee334, 0xef781c7d4c1fd8b4,
@@ -331,19 +335,6 @@ def poseidon_original(init_state):
     return state
 
 
-N = 1536
-n = int(N / t)
-
-def print_words_to_hex(words):
-    hex_length = int(ceil(float(n) / 4)) + 2 # +2 for "0x"
-    print(["{0:#0{1}x}".format(int(entry), hex_length) for entry in words])
-
-def print_concat_words_to_large(words):
-    hex_length = int(ceil(float(n) / 4))
-    nums = ["{0:0{1}x}".format(int(entry), hex_length) for entry in words]
-    final_string = "0x" + ''.join(nums)
-    print(final_string)
-
 def print_hex_vectlst(vs, indent=''):
     for v in vs:
         print(f'{indent}    [', end='')
@@ -354,56 +345,18 @@ def print_hex_vectlst(vs, indent=''):
         print('],')
 
 
+def test_consistency():
+    inputs = [
+        vector(F, [0]*t),     # Test input [0, 0, ..., 0]
+        vector(F, [F(-1)]*t), # Test input [p-1, ..., p-1]
+        vector(F, range(t)),  # Test input [0, 1, ..., t-1]
+        vector(F, [0xb69ed321abbeffbb, 0xfb496d8c39b64e42, 0x274f1cfbb925c789, 0x9e846d2b9a56b834,
+                   0xc7f297c0d48bc3b6, 0xb859ab1e45850a0a, 0x3244fe3bcb1244cb, 0xb98e1cfa647575de])]
 
-#input_words = vector(F, [0]*t)  # Test input [0, 0, ..., 0]
-input_words = vector(F, range(t))  # Test input [0, 1, ..., t-1]
-#input_words = vector(F, [0xb69ed321abbeffbb, 0xfb496d8c39b64e42, 0x274f1cfbb925c789, 0x9e846d2b9a56b834,
-#                         0xc7f297c0d48bc3b6, 0xb859ab1e45850a0a, 0x3244fe3bcb1244cb, 0xb98e1cfa647575de])
-#input_words = vector(F, [F.random_element() for _ in range(t)])
-
-output_words = None
-num_iterations = 1
-total_time_passed = 0
-for i in range(0, num_iterations):
-    output_words = poseidon_original(input_words)
-    time_passed = timer_end - timer_start
-    total_time_passed += time_passed
-average_time = total_time_passed / float(num_iterations)
-print("Average time for unoptimized:", average_time)
-
-# print "Input:"
-# print_words_to_hex(input_words)
-# print "Output:"
-# print_words_to_hex(output_words)
-
-print("Input (concat):")
-print_hex_vectlst([input_words])
-print("Output (concat):")
-#print_concat_words_to_large(output_words)
-print_hex_vectlst([output_words])
-
-orig_output = list(output_words)
-
-total_time_passed = 0
-for i in range(0, num_iterations):
-    output_words = poseidon(input_words)
-    time_passed = timer_end - timer_start
-    total_time_passed += time_passed
-average_time = total_time_passed / float(num_iterations)
-print("Average time for optimized:", average_time)
-
-# print "Input:"
-# print_words_to_hex(input_words)
-# print "Output:"
-# print_words_to_hex(output_words)
-
-print("Input (concat):")
-print_concat_words_to_large(input_words)
-print("Output (concat):")
-#print_concat_words_to_large(output_words)
-print_hex_vectlst([output_words])
-
-assert orig_output == output_words.list()
+    for input_words in inputs:
+        orig_output = poseidon_original(input_words)
+        fast_output = poseidon(input_words)
+        assert orig_output == fast_output
 
 def print_fast_partial_consts():
     round_consts = calc_equivalent_constants(round_constants)
@@ -452,4 +405,6 @@ def print_fast_partial_consts():
     print_hex_vectlst(M_i.submatrix(1,1).columns(), indent)
     print(f'\n{indent}];\n')
 
-print_fast_partial_consts()
+if __name__ == "__main__":
+    test_consistency()
+    print_fast_partial_consts()
