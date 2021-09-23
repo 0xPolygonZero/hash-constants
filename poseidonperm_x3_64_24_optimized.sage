@@ -377,11 +377,11 @@ def print_fast_partial_consts(hash_data):
 
     # take log2 of each element of the first row
     exps = [m.lift().nbits() - 1 for m in hash_data.mds_matrix[0]]
-    exps_str = f'const MDS_MATRIX_EXPS: [u64; WIDTH] = {exps};'
+    exps_str = f'const MDS_MATRIX_EXPS: [u64; {t}] = {exps};'
 
     print(f'{mds_comment}\n{indent}{exps_str}')
 
-    print(f'\n{indent}const FAST_PARTIAL_FIRST_ROUND_CONSTANT: [u64; WIDTH]  = [', end='')
+    print(f'\n{indent}const FAST_PARTIAL_FIRST_ROUND_CONSTANT: [u64; {t}]  = [', end='')
     cnt = 0
     for i in range(t):
         if (cnt % 4) == 0:
@@ -407,16 +407,16 @@ def print_fast_partial_consts(hash_data):
 
     M_i, vs, w_hats, M_00 = hash_data.precomp_constants_fast
 
-    print(f'{indent}const FAST_PARTIAL_ROUND_VS: [[u64; WIDTH - 1]; N_PARTIAL_ROUNDS] = [')
+    print(f'{indent}const FAST_PARTIAL_ROUND_VS: [[u64; {t} - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(vs, indent)
     print(f'\n{indent}];\n')
 
-    print(f'{indent}const FAST_PARTIAL_ROUND_W_HATS: [[u64; WIDTH - 1]; N_PARTIAL_ROUNDS] = [')
+    print(f'{indent}const FAST_PARTIAL_ROUND_W_HATS: [[u64; {t} - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(w_hats, indent)
     print(f'\n{indent}];\n')
 
     print(f'{indent}// NB: This is in ROW-major order to support cache-friendly pre-multiplication.')
-    print(f'{indent}const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; WIDTH - 1]; WIDTH - 1] = [')
+    print(f'{indent}const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; {t} - 1]; {t} - 1] = [')
     print_hex_vectlst(M_i.submatrix(1,1).rows(), indent)
     print(f'\n{indent}];\n')
 
