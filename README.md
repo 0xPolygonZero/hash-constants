@@ -16,3 +16,8 @@ This repository contains three files:
   command line to get those instead. Uses width 8 by default, specify
   'crandall 12' or 'goldilocks 12' on the command line for
   width 12. Edit 'main' function directly to use a different MDS matrix.
+
+The latter two files are originally from
+[Hadeshash](https://extgit.iaik.tugraz.at/krypto/hadeshash) reference
+implementation of Poseidon. They have been _substantially_ cleaned up,
+as well as modified for our particular case.
