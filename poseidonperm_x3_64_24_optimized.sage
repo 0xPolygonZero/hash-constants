@@ -364,6 +364,23 @@ def print_fast_partial_consts(hash_data):
 
     indent = '    '
     R_f = R_F // 2
+
+    mds_comment = f'''\n{indent}// The MDS matrix we use is the circulant matrix with first row given by the vector
+    // [ 2^x for x in MDS_MATRIX_EXPS] = {list(hash_data.mds_matrix[0])}
+    //
+    // WARNING: If the MDS matrix is changed, then the following
+    // constants need to be updated accordingly:
+    //  - FAST_PARTIAL_ROUND_CONSTANTS
+    //  - FAST_PARTIAL_ROUND_VS
+    //  - FAST_PARTIAL_ROUND_W_HATS
+    //  - FAST_PARTIAL_ROUND_INITIAL_MATRIX'''
+
+    # take log2 of each element of the first row
+    exps = [m.lift().nbits() - 1 for m in hash_data.mds_matrix[0]]
+    exps_str = f'const MDS_MATRIX_EXPS: [u64; WIDTH] = {exps};'
+
+    print(f'{mds_comment}\n{indent}{exps_str}')
+
     print(f'\n{indent}const FAST_PARTIAL_FIRST_ROUND_CONSTANT: [u64; WIDTH]  = [', end='')
     cnt = 0
     for i in range(t):
