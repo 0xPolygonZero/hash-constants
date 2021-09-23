@@ -409,16 +409,16 @@ def print_fast_partial_consts(hash_data):
 
     print(f'{indent}const FAST_PARTIAL_ROUND_VS: [[u64; {t} - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(vs, indent)
-    print(f'\n{indent}];\n')
+    print(f'{indent}];\n')
 
     print(f'{indent}const FAST_PARTIAL_ROUND_W_HATS: [[u64; {t} - 1]; N_PARTIAL_ROUNDS] = [')
     print_hex_vectlst(w_hats, indent)
-    print(f'\n{indent}];\n')
+    print(f'{indent}];\n')
 
     print(f'{indent}// NB: This is in ROW-major order to support cache-friendly pre-multiplication.')
     print(f'{indent}const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; {t} - 1]; {t} - 1] = [')
     print_hex_vectlst(M_i.submatrix(1,1).rows(), indent)
-    print(f'\n{indent}];\n')
+    print(f'{indent}];\n')
 
 
 if __name__ == "__main__":
