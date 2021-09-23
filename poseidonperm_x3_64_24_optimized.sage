@@ -374,7 +374,7 @@ def print_fast_partial_consts(hash_data):
         cnt += 1
     print(f'\n{indent}];\n')
 
-    print(f'\n{indent}const FAST_PARTIAL_ROUND_CONSTANTS: [u64; N_PARTIAL_ROUNDS - 1]  = [', end='')
+    print(f'\n{indent}const FAST_PARTIAL_ROUND_CONSTANTS: [u64; N_PARTIAL_ROUNDS]  = [', end='')
     cnt = 0
     for i, rc in enumerate(round_consts):
         # Skip the first four full rounds, and the first partial round;
@@ -385,6 +385,7 @@ def print_fast_partial_consts(hash_data):
             val = int(rc[0])  # Only need first entry as the others are zero
             print(f'0x{val:016x}, ', end='')
             cnt += 1
+    print('0x0, ', end='')  # Must end with a zero
     print(f'\n{indent}];\n')
 
     M_i, vs, w_hats, M_00 = hash_data.precomp_constants_fast
@@ -397,9 +398,9 @@ def print_fast_partial_consts(hash_data):
     print_hex_vectlst(w_hats, indent)
     print(f'\n{indent}];\n')
 
-    print(f'{indent}// NB: This is in COLUMN-major order to support cache-friendly pre-multiplication.')
+    print(f'{indent}// NB: This is in ROW-major order to support cache-friendly pre-multiplication.')
     print(f'{indent}const FAST_PARTIAL_ROUND_INITIAL_MATRIX: [[u64; WIDTH - 1]; WIDTH - 1] = [')
-    print_hex_vectlst(M_i.submatrix(1,1).columns(), indent)
+    print_hex_vectlst(M_i.submatrix(1,1).rows(), indent)
     print(f'\n{indent}];\n')
 
 
