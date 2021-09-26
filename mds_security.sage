@@ -1,6 +1,18 @@
 # TODO: Work out what the role of this global is.
 s = 1
 
+def check_minpoly_condition(M):
+    t = M.ncols()
+    max_period = 2*t
+    all_fulfilled = True
+    M_temp = M
+    for i in range(1, max_period + 1):
+        if not ((M_temp.minimal_polynomial().degree() == t) and (M_temp.minimal_polynomial().is_irreducible() == True)):
+            all_fulfilled = False
+            break
+        M_temp = M * M_temp
+    return all_fulfilled
+
 def isAllInvertible(M):
     t = M.nrows()
     # Test all square submatrices for invertibility
@@ -166,6 +178,8 @@ def main(row):
     print(C)
     print('Prime: ', hex(C.base_ring().cardinality()))
     print('Is MDS: ', isAllInvertible(C))
+    print('Satisfies minpoly condition (this is sufficient, but not necessary): ',
+          check_minpoly_condition(C))
     print('Secure by algo 1:', algorithm_1(C))
     print('Secure by algo 2:', algorithm_2(C))
     print('Secure by algo 3:', algorithm_3(C))
@@ -186,8 +200,8 @@ if __name__ == '__main__':
     try:
         prime = Integer(sys.argv[1])
         if not prime.is_prime():
-            raise ValueError(prime)
-    except ValueError:
+            raise ValueError(prime, 'first argument must be prime')
+    except TypeError:
         try:
             prime = primes[sys.argv[1]]
         except KeyError:
