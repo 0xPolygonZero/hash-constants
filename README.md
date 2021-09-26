@@ -18,14 +18,14 @@ This repository contains three files:
   function directly to use a different MDS matrix.
 
 - `mds_security.sage`: Checks the security of a given MDS matrix wrt
-  to several tests; primarily avoiding 'infinitely long subspace trails'.
+  to several tests; primarily to avoid 'infinitely long subspace trails'.
 
 The latter two files are originally from
 [Hadeshash](https://extgit.iaik.tugraz.at/krypto/hadeshash) reference
 implementation of Poseidon. They have been _substantially_ cleaned up,
 as well as modified for our particular case.
 
-The last file is originally from
+The last file contains functions originally from
 [linear-layer-tool](https://extgit.iaik.tugraz.at/krypto/linear-layer-tool)
-from the authors of Poseidon and its reference implementation. It has
+by the authors of Poseidon and its reference implementation. It has
 also been cleaned up and adapted to our case.
