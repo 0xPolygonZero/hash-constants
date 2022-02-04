@@ -348,10 +348,18 @@ def test_consistency(hash_data):
         vector(F, range(t)),  # Test input [0, 1, ..., t-1]
         vector(F, [F.random_element() for _ in range(t)])]
 
+    outputs = []
     for input_words in inputs:
         orig_output = poseidon_original(input_words, hash_data)
         fast_output = poseidon(input_words, hash_data)
         assert orig_output == fast_output
+        outputs.append(orig_output)
+
+    print('=== test vectors ===')
+    print('--- inputs ---')
+    print_hex_vectlst(inputs)
+    print('--- outputs ---')
+    print_hex_vectlst(outputs)
 
 
 def print_fast_partial_consts(hash_data):
