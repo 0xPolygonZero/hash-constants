@@ -85,6 +85,16 @@ def is_binary_power(x):
     x = int(x)
     return (x == 1) or (x & (x - 1) == 0)
 
+def next_binary_power(x, inclusive=True):
+    '''Return the smallest binary power larger than x.
+
+    If inclusive is True, return x if x is already a binary power;
+    otherwise, return the smallest binary power strictly larger than x.
+    '''
+    if inclusive and is_binary_power(x):
+        return x
+    return 1 << int(x).bit_length()
+
 def make_binary_powers(init_row, noisy=True):
     '''Use given circulant MDS matrix to generate a circulant MDS matrix
     with entries that are powers of two.
