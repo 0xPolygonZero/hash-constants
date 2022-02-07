@@ -63,6 +63,8 @@ def is_mds_circ(row):
     return is_mds_fast(Matrix.circulant(row))
 
 def to_butterfly_tuples(M):
+    '''Given a 12-vector M, return the three 4-vectors from its radix-3
+    Fourier transform.'''
     t = [M[0], M[3], M[6], M[9]]
     u = [M[1], M[4], M[7], M[10]]
     v = [M[2], M[5], M[8], M[11]]
@@ -74,15 +76,28 @@ def from_butterfly_tuples(t, u, v):
             t[2], u[2], v[2],
             t[3], u[3], v[3]]
 
-def fft_vals(a, b, c, d):
+def FT_vals(a, b, c, d):
+    '''Given the four elements of a length 4 vector, return the values
+    that appear in its complex Fourier transform.
+
+    The complex Fourier transform of a 4-vector (a, b, c, d) is
+
+    [a+b+c+d, (a-c) + (b-d)*i, a-b+c-d, (a-c) - (b-d)*i]
+
+    where 'i' is sqrt(-1). This function returns the first and third
+    elements, as well as the real and imaginary parts of the second
+    and fourth elements.
+    '''
     return [a + b + c + d,
             a - b + c - d,
             a - c,
             b - d]
 
-def fftv(M):
+def FT(M):
+    '''Given a 12-vector M, return the Fourier transform values (as
+    defined in FT_vals) of the three "butterfly tuples" of M.'''
     t, u, v = to_butterfly_tuples(M)
-    return fft_vals(*t), fft_vals(*u), fft_vals(*v)
+    return FT_vals(*t), FT_vals(*u), FT_vals(*v)
 
 def check_candidate(args):
     K, U, candidate_elts = args
@@ -108,7 +123,7 @@ Uinv = 1/4 * matrix(QQ, [[1,  1,  2,  0],
                          [1, -1,  0, -2]])
 
 def update_vec(vec, target):
-    delta = vector(t - f for t, f in zip(target, fft_vals(*vec)))
+    delta = vector(t - f for t, f in zip(target, FT_vals(*vec)))
     update = Uinv * vector(QQ, delta)
     if any(u.denominator() != 1 for u in update):
         return None
@@ -118,77 +133,21 @@ def update_vec(vec, target):
     return new_vec
 
 
-def find_matrix(K, max_exp=4):
-    '''Find a matrix.
-
-    The complex Fourier transform of x0, x1, x2, x3 is
-
-    X = [x0 + x1 + x2 + x3,
-         (x0 - x2) + (x1 - x3) i,
-         x0 - x1 + x2 - x3,
-         (x0 - x2) - (x1 - x3) i]
-      = [ 1  1  1  1 ] [ x0 ]
-        [ 1  i -1 -i ] [ x1 ]
-        [ 1 -1  1 -1 ] [ x2 ]
-        [ 1 -i -1  i ] [ x3 ]
-
-    We want the entries of X to be small (incl. zero or one) or
-    otherwise a power of two.
-
-    '''
-    U = matrix(QQ, [[1,  1,  1,  1],
-                    [1, -1,  1, -1],
-                    [1,  0, -1,  0],
-                    [0,  1,  0, -1]])
-    Uinv = U^-1
-    trial_entries = [1 << i for i in range(max_exp + 1)]
-    trials = itertools.product(trial_entries, repeat=4)
-    candidate_tuples = []
-    for trial in trials:
-        v = Uinv * vector(QQ, trial)
-        if all(vi != 0 for vi in v):      # and len(set(v)) >= len(v) - 1:
-            # v has only non-zero entries #and no duplicates
-            #print(trial, ' => ', v)
-            candidate_tuples.append(v)
-
-    print('found', len(candidate_tuples), 'candidate tuples')
-    n = len(candidate_tuples)
-    print('total number of candidate matrices is', n * (n-1) * (n-2))
-
-    results = []
-    tries = 0
-
-    M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
-    tuples = to_butterfly_tuples(M)
-    tuples = list(tuples)
-
-    basic_entries = [1 << i for i in range(max_exp + 1)]
-    trial_entires = []
-    for b in basic_entries:
-        trial_entries.extend([b, -b])
-    trial_entries = basic_entries
-
-    for idx in range(0, 3):
-        print(f'Index {idx}:')
-        trials = list(itertools.product(trial_entries, repeat=4))
-        trials.sort(key=lambda t: list(map(abs, reversed(t))))
-
-        cnt = 0
-        t = tuples[idx]
-        for target in trials:
-            new_t = update_vec(t, target)
-            if new_t is not None:
-                new_tuples = list(tuples)
-                new_tuples[idx] = new_t
-                ok = is_mds_circ(vector(K, from_butterfly_tuples(*new_tuples)))
-                if ok:
-                    print(f'  {t} -> {new_t} gives {target}')
-                    tuples[idx] = new_t
-                    break
-            cnt += 1
-
-        print(f'count: {cnt}')
-    return
+def find_tuple_at_idx(K, tuples, idx, trials):
+    cnt = 0
+    t = tuples[idx]
+    for target in trials:
+        new_t = update_vec(t, target)
+        if new_t is not None:
+            new_tuples = list(tuples)
+            new_tuples[idx] = new_t
+            ok = is_mds_circ(vector(K, from_butterfly_tuples(*new_tuples)))
+            if ok:
+                print(f'  {t} -> {new_t} gives {target}')
+                # new tuples[idx] tuple
+                yield new_t
+        cnt += 1
+    print(f'count: {cnt}')
 
     # from multiprocessing import Pool, cpu_count
     # pool = Pool(cpu_count())
@@ -203,3 +162,47 @@ def find_matrix(K, max_exp=4):
 
     #return results
 
+def trial_list(max_exp):
+    basic_entries = [1 << i for i in range(max_exp + 1)]
+    trial_entries = []
+    for b in basic_entries:
+        trial_entries.extend([b, -b])
+    #trial_entries = basic_entries
+
+    # TODO: Document choice of sort order
+    trials = list(itertools.product(trial_entries, repeat=4))
+    trials.sort(key=lambda t: list(map(abs, reversed(t))))
+    return trials
+
+def find_matrix(K, max_exp=4):
+    M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
+    tuples = list(to_butterfly_tuples(M))
+    trials = trial_list(max_exp)
+    for idx in range(0, 3):
+        print(f'Index {idx}:')
+        tuples[idx] = find_tuple_at_idx(K, tuples, idx, trials)
+    print(from_butterfly_tuples(*tuples))
+
+def find_matrix_tree(K, max_exp=4):
+    M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
+    tuples = list(to_butterfly_tuples(M))
+    trials = trial_list(max_exp)
+    print(f'Index 0:')
+    for t0 in find_tuple_at_idx(K, tuples, 0, trials):
+        print(f' * Index 1:')
+        for t1 in find_tuple_at_idx(K, (t0, tuples[1], tuples[2]), 1, trials):
+            print(f' ** Index 2:')
+            for t2 in find_tuple_at_idx(K, (t0, t1, tuples[2]), 2, trials):
+                res = from_butterfly_tuples(t0, t1, t2)
+                print('    found:', res)
+                C = matrix.circulant(res)
+                C.change_ring(K)
+                mp = check_minpoly_condition(C)
+                sec1, _ = algorithm_1(C)
+                sec2, _ = algorithm_2(C)
+                sec3, _ = algorithm_3(C)
+                if all((sec1, sec2, sec3)):
+                    print(f'    SAFE!! (minpoly: {mp})')
+                    return res
+                else:
+                    print('    some tests failed:', mp, sec1, sec2, sec3)
