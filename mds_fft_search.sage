@@ -59,23 +59,8 @@ def is_mds_fast(A, noisy=False):
     return True
 
 def is_mds_circ(row):
-    '''Return the circulant matrix whose first row is 'row'.'''
+    '''Return True if the circulant matrix whose first row is 'row' is MDS.'''
     return is_mds_fast(Matrix.circulant(row))
-
-def is_binary_power(x):
-    '''Return true iff x = 2^e for some integer e >= 0.'''
-    x = int(x)
-    return (x == 1) or (x & (x - 1) == 0)
-
-def next_binary_power(x, inclusive=True):
-    '''Return the smallest binary power larger than x.
-
-    If inclusive is True, return x if x is already a binary power;
-    otherwise, return the smallest binary power strictly larger than x.
-    '''
-    if inclusive and is_binary_power(x):
-        return x
-    return 1 << int(x).bit_length()
 
 def to_butterfly_tuples(M):
     t = [M[0], M[3], M[6], M[9]]
