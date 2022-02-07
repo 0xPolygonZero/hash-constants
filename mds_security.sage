@@ -186,8 +186,8 @@ def main(row):
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print('usage: {sys.argv[0]} <prime> <first> <row> <of> <matrix>')
-        print('  e.g: {sys.argv[0]} 0xffffffff70000001 1 1 2 1 8 32 4 256')
+        print(f'usage: {sys.argv[0]} <prime> <first> <row> <of> <matrix>')
+        print(f'  e.g: {sys.argv[0]} 0xffffffff70000001 1 1 2 1 8 32 4 256')
         print(" <prime> can also be 'goldilocks' or 'crandall' to pick those primes")
         exit()
 
