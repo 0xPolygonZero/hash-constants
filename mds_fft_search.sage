@@ -1,5 +1,12 @@
 import itertools
 
+# For check_minpoly_condition, algorithm_1, algorithm_2, algorithm_3
+#
+# Annoyingly, it seems we have to comment out the `if __name__ ==
+# '__main__'` clause and `def main(row):` function at the bottom of
+# `mds_security.sage` for this to work; not sure why.
+load('mds_security.sage')
+
 goldilocks_prime = 2^64 - 2^32 + 1
 goldilocks_field = GF(goldilocks_prime)
 
@@ -99,20 +106,6 @@ def FT(M):
     t, u, v = to_butterfly_tuples(M)
     return FT_vals(*t), FT_vals(*u), FT_vals(*v)
 
-def check_candidate(args):
-    K, U, candidate_elts = args
-    t, u, v = candidate_elts
-    # invert the FFT butterfly
-    row = vector(K, [t[0], u[0], v[0],
-                     t[1], u[1], v[1],
-                     t[2], u[2], v[2],
-                     t[3], u[3], v[3]])
-    if is_mds_circ(row):
-        fft_elts = [U * r for r in candidate_elts]
-        print('\n', row, ' => ', fft_elts, flush=True)
-        return [(row, fft_elts)]
-    return []
-
 # U = matrix(QQ, [[1,  1,  1,  1],
 #                 [1, -1,  1, -1],
 #                 [1,  0, -1,  0],
@@ -146,17 +139,12 @@ class DoCheck:
         new_tuples = list(self.tuples)
         new_tuples[self.idx] = new_t
         ok = is_mds_circ(vector(self.K, from_butterfly_tuples(*new_tuples)))
-        if ok:
-            #print(f'  {t} -> {new_t} gives {target}')
-            return new_t
+        return new_t if ok else None
 
 def find_tuple_at_idx_par(K, tuples, idx, trials):
     from multiprocessing import Pool, cpu_count
     pool = Pool(cpu_count())
     check = DoCheck(K, tuples, idx)
-    # for result in pool.imap(check, trials):
-    #     if result is not None:
-    #         yield result
     return pool.imap(check, trials)
 
 
@@ -181,24 +169,15 @@ def trial_list(max_exp):
     trial_entries = []
     for b in basic_entries:
         trial_entries.extend([b, -b])
-    #trial_entries = basic_entries
 
     # TODO: Document choice of sort order
     trials = list(itertools.product(trial_entries, repeat=4))
     trials.sort(key=lambda t: list(map(abs, reversed(t))))
     return trials
 
-def find_matrix(K, max_exp=4):
-    M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
-    tuples = list(to_butterfly_tuples(M))
-    trials = trial_list(max_exp)
-    for idx in range(0, 3):
-        print(f'Index {idx}:')
-        tuples[idx] = find_tuple_at_idx(K, tuples, idx, trials)
-    print(from_butterfly_tuples(*tuples))
-
-def find_matrix_tree(K, max_exp=4):
-    M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
+def find_matrix_tree(K, max_exp=4, M=None):
+    if M == None:
+        M = [9, 20, 4, 1, 16, 2, 22, 27, 3, 32, 1, 1]
     tuples = list(to_butterfly_tuples(M))
     trials = trial_list(max_exp)
     print(f'Index 0:')
@@ -218,10 +197,8 @@ def find_matrix_tree(K, max_exp=4):
                 sec2, _ = algorithm_2(C)
                 sec3, _ = algorithm_3(C)
                 if all((sec1, sec2, sec3)):
-                    print('    found:', res)
+                    print(f'    found: {res} -> {FT(res)}')
                     print(f'    SAFE!! (minpoly: {mp})')
                     if mp:
                         last_tups.terminate()
                         return res
-                # else:
-                #     print('    some tests failed:', mp, sec1, sec2, sec3)
