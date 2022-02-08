@@ -132,6 +132,33 @@ def update_vec(vec, target):
         return None
     return new_vec
 
+class DoCheck:
+    def __init__(self, K, tuples, idx):
+        self.K = K
+        self.tuples = tuples
+        self.idx = idx
+
+    def __call__(self, target):
+        t = self.tuples[self.idx]
+        new_t = update_vec(t, target)
+        if new_t is None:
+            return None
+        new_tuples = list(self.tuples)
+        new_tuples[self.idx] = new_t
+        ok = is_mds_circ(vector(self.K, from_butterfly_tuples(*new_tuples)))
+        if ok:
+            #print(f'  {t} -> {new_t} gives {target}')
+            return new_t
+
+def find_tuple_at_idx_par(K, tuples, idx, trials):
+    from multiprocessing import Pool, cpu_count
+    pool = Pool(cpu_count())
+    check = DoCheck(K, tuples, idx)
+    # for result in pool.imap(check, trials):
+    #     if result is not None:
+    #         yield result
+    return pool.imap(check, trials)
+
 
 def find_tuple_at_idx(K, tuples, idx, trials):
     cnt = 0
@@ -148,19 +175,6 @@ def find_tuple_at_idx(K, tuples, idx, trials):
                 yield new_t
         cnt += 1
     print(f'count: {cnt}')
-
-    # from multiprocessing import Pool, cpu_count
-    # pool = Pool(cpu_count())
-    # for result in pool.map(check_candidate,
-    #                        zip(itertools.repeat(K),
-    #                            itertools.repeat(U),
-    #                            itertools.permutations(candidate_tuples, r=int(3)))):
-    #     if tries % 100000 == 0:
-    #        print('.', end='', flush=True)
-    #     tries += 1
-    #     results += result
-
-    #return results
 
 def trial_list(max_exp):
     basic_entries = [1 << i for i in range(max_exp + 1)]
@@ -192,9 +206,11 @@ def find_matrix_tree(K, max_exp=4):
         print(f' * Index 1:')
         for t1 in find_tuple_at_idx(K, (t0, tuples[1], tuples[2]), 1, trials):
             print(f' ** Index 2:')
-            for t2 in find_tuple_at_idx(K, (t0, t1, tuples[2]), 2, trials):
+            last_tups = find_tuple_at_idx_par(K, (t0, t1, tuples[2]), 2, trials)
+            for t2 in last_tups:
+                if t2 is None:
+                    continue
                 res = from_butterfly_tuples(t0, t1, t2)
-                print('    found:', res)
                 C = matrix.circulant(res)
                 C.change_ring(K)
                 mp = check_minpoly_condition(C)
@@ -202,7 +218,10 @@ def find_matrix_tree(K, max_exp=4):
                 sec2, _ = algorithm_2(C)
                 sec3, _ = algorithm_3(C)
                 if all((sec1, sec2, sec3)):
+                    print('    found:', res)
                     print(f'    SAFE!! (minpoly: {mp})')
-                    return res
-                else:
-                    print('    some tests failed:', mp, sec1, sec2, sec3)
+                    if mp:
+                        last_tups.terminate()
+                        return res
+                # else:
+                #     print('    some tests failed:', mp, sec1, sec2, sec3)
