@@ -4,14 +4,13 @@ s = 1
 def check_minpoly_condition(M):
     t = M.ncols()
     max_period = 2*t
-    all_fulfilled = True
-    M_temp = M
+    M_pow_i = M
     for i in range(1, max_period + 1):
-        if not ((M_temp.minimal_polynomial().degree() == t) and (M_temp.minimal_polynomial().is_irreducible() == True)):
-            all_fulfilled = False
-            break
-        M_temp = M * M_temp
-    return all_fulfilled
+        minpol = M_pow_i.minimal_polynomial()
+        if minpol.degree() != t or not minpol.is_irreducible():
+            return [False, i]
+        M_pow_i = M * M_pow_i
+    return True
 
 def isAllInvertible(M):
     t = M.nrows()
