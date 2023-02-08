@@ -1,9 +1,12 @@
 # Generation of MDS matrices and precomputed constants for the Poseidon hash function
 
-This repository contains three files:
+This repository contains five files:
 
 - `mds_search.sage`: Functions for discovering MDS matrices; examples
   for the Crandall and Goldilocks fields are at end of file.
+  
+- `mds_fft_search.sage`: Copypasta from `mds_search.sage` adapted to
+  find MDS matrices with nice FFT values.
 
 - `calc_round_numbers.py`: Used to compute the number of full and
   partial rounds needed to obtain sufficient security. Will calculate
