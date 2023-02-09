@@ -1,7 +1,9 @@
-#
-# This file is based on the Poseidon implementation at
-# https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/659de89cd207e19b92852458dce92adf83ad7cf7/code/poseidonperm_x3_64_24_optimized.sage
-#
+###
+### This file can be used to generate constant values used in the "fast"
+### algorithm for Poseidon. It is based on (after significant cleaning up)
+###
+### https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/659de89cd207e19b92852458dce92adf83ad7cf7/code/poseidonperm_x3_64_24_optimized.sage
+###
 
 # These come from ChaCha initialised with 0.
 ROUND_CONSTANTS = [

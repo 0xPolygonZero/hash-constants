@@ -1,3 +1,8 @@
+###
+### This file contains utilities for finding MDS matrices whose FFT
+### consists of small powers of 2. Partly copypasta from `mds_search.sage`.
+###
+
 import itertools
 
 # For check_minpoly_condition, algorithm_1, algorithm_2, algorithm_3

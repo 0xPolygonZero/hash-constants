@@ -1,3 +1,8 @@
+###
+### This file is from
+### https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/b5434fd2b2785926dd1dd386efbef167da57c064/code/calc_round_numbers.py
+###
+
 from math import *
 import sys
 

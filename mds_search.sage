@@ -1,3 +1,8 @@
+###
+### This file contains utilities for finding MDS matrices whose entries
+### of small powers of 2.
+###
+
 import itertools
 
 def is_mds_slow(M, noisy=False):

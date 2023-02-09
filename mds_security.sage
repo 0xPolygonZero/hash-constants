@@ -1,3 +1,9 @@
+###
+### This file contains security checks for MDS matrices. It is based on
+###
+### https://extgit.iaik.tugraz.at/krypto/linear-layer-tool/-/blob/5fcf0f3b609dc8158cfc9d407e4eaf3f5e7f8718/code/algorithms_gfp.sage
+###
+
 # TODO: Work out what the role of this global is.
 s = 1
 
