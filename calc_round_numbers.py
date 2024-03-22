@@ -92,8 +92,8 @@ def print_round_numbers(primes, monomial_bound = 12, state_widths = [8, 12]):
         print('  Prime: {} = 0x{:X}'.format('<noname>' if len(name) == 0 else name, prime))
         for alpha in range(3, monomial_bound, 2):
             print(f'    Monomial degree {alpha}', end='')
-            if (prime - 1) % alpha == 0:
-                print(f'... skipping as {alpha} divides p-1')
+            if gcd((prime - 1), alpha) != 1:
+                print(f'... skipping as {alpha} and p-1 are not coprime')
                 continue
             print('')
             for width in state_widths:
