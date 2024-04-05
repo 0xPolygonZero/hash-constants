@@ -6,30 +6,35 @@
 from math import *
 import sys
 
-def sat_inequiv_alpha(p, t, R_F, R_P, alpha, M):
+# Given p, t, R_P, alpha, M compute the minimal possible value of R_F.
+def sat_inequiv_alpha(p, t, R_P, alpha, M):
     n = ceil(log(p, 2))
-    N = int(n * t)
     if alpha > 0:
+        # R_F needs to be bigger or equal to R_F_1, ... R_F_5.
         R_F_1 = 6 if M <= ((floor(log(p, 2) - ((alpha-1)/2.0))) * (t + 1)) else 10 # Statistical
         R_F_2 = 1 + ceil(log(2, alpha) * min(M, n)) + ceil(log(t, alpha)) - R_P # Interpolation
-        #R_F_3 = ceil(min(n, M) / float(3*log(alpha, 2))) - R_P # Groebner 1
-        #R_F_3 = ((log(2, alpha) / float(2)) * min(n, M)) - R_P # Groebner 1
-        R_F_3 = 1 + (log(2, alpha) * min(M/float(3), log(p, 2)/float(2))) - R_P # Groebner 1
-        R_F_4 = t - 1 + min((log(2, alpha) * M) / float(t+1), ((log(2, alpha)*log(p, 2)) / float(2))) - R_P # Groebner 2
-        #R_F_5 = ((1.0/(2*log((alpha**alpha)/float((alpha-1)**(alpha-1)), 2))) * min(n, M) + t - 2 - R_P) / float(t - 1) # Groebner 3
-        R_F_max = max(ceil(R_F_1), ceil(R_F_2), ceil(R_F_3), ceil(R_F_4))
-        return (R_F >= R_F_max)
-    elif alpha == (-1):
-        R_F_1 = 6 if M <= ((floor(log(p, 2) - 2)) * (t + 1)) else 10 # Statistical
-        R_P_1 = 1 + ceil(0.5 * min(M, n)) + ceil(log(t, 2)) - floor(R_F * log(t, 2)) # Interpolation
-        R_P_2 = 1 + ceil(0.5 * min(M, n)) + ceil(log(t, 2)) - floor(R_F * log(t, 2))
-        R_P_3 = t - 1 + ceil(log(t, 2)) + min(ceil(M / float(t+1)), ceil(0.5*log(p, 2))) - floor(R_F * log(t, 2)) # Groebner 2
-        R_F_max = ceil(R_F_1)
-        R_P_max = max(ceil(R_P_1), ceil(R_P_2), ceil(R_P_3))
-        return (R_F >= R_F_max and R_P >= R_P_max)
+        R_F_3 = (log(2, alpha) * min(M, log(p, 2))) - R_P # Groebner 1
+        R_F_4 = t - 1 + log(2, alpha) * min(M / float(t + 1), log(p, 2) / float(2)) - R_P # Groebner 2
+        R_F_5 = (t - 2 + (M / float(2 * log(alpha, 2))) - R_P) / float(t - 1) # Groebner 3
+        R_F_min = ceil(max(R_F_1, R_F_2, R_F_3, R_F_4, R_F_5))
     else:
         print("Invalid value for alpha!")
         exit(1)
+
+    return R_F_min
+
+# An additional check due to the paper: https://eprint.iacr.org/2023/537.pdf
+def extra_check(t, R_F, R_P, alpha, M):
+    r_temp = floor(t / 3.0)
+    over = (R_F - 1) * t + R_P + r_temp + r_temp * (R_F / 2) + R_P + alpha
+    under = r_temp * (R_F / 2) + R_P + alpha
+    binom_log = log(binomial(over, under), 2)
+    if binom_log == float("inf"):
+        return True
+    
+    cost_gb4 = ceil(2 * binom_log) # Paper uses 2.3727, we are more conservative here
+    
+    return cost_gb4 >= M
 
 def get_sbox_cost(R_F, R_P, N, t):
     return int(t * R_F + R_P)
@@ -52,19 +57,20 @@ def find_FD_round_numbers(p, t, alpha, M, cost_function, security_margin):
     min_cost = float("inf")
     max_cost_rf = 0
     # Brute-force approach
-    for R_P_t in range(1, 500):
-        for R_F_t in range(4, 100):
-            if R_F_t % 2 == 0:
-                if (sat_inequiv(p, t, R_F_t, R_P_t, alpha, M) == True):
-                    if security_margin == True:
-                        R_F_t += 2
-                        R_P_t = int(ceil(float(R_P_t) * 1.075))
-                    cost = cost_function(R_F_t, R_P_t, N, t)
-                    if (cost < min_cost) or ((cost == min_cost) and (R_F_t < max_cost_rf)):
-                        R_P = ceil(R_P_t)
-                        R_F = ceil(R_F_t)
-                        min_cost = cost
-                        max_cost_rf = R_F
+    for R_P_t in range(1, 100):
+        R_F_t = sat_inequiv_alpha(p, t, R_P_t, alpha, M)
+        if R_F_t % 2 == 1:
+            R_F_t += 1
+        if (extra_check(t, R_F_t, R_P_t, alpha, M) == True):
+            if security_margin == True:
+                R_F_t += 2
+                R_P_t = int(ceil(float(R_P_t) * 1.075))
+            cost = cost_function(R_F_t, R_P_t, N, t)
+            if (cost < min_cost) or ((cost == min_cost) and (R_F_t < max_cost_rf)):
+                R_P = ceil(R_P_t)
+                R_F = ceil(R_F_t)
+                min_cost = cost
+                max_cost_rf = R_F
     return (int(R_F), int(R_P))
 
 def calc_final_numbers_fixed(p, t, alpha, M, security_margin):
