@@ -113,7 +113,7 @@ if __name__ == "__main__":
     primes = [crandall_prime, goldilocks_prime]
 
     if len(sys.argv) > 1:
-        p = sys.argv[1]
+        p = int(sys.argv[1])
         #if not p.is_prime():
         #    print('Argument {p} is not prime')
         primes = [('', p)]
