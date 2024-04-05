@@ -28,7 +28,7 @@ def extra_check(t, R_F, R_P, alpha, M):
     r_temp = floor(t / 3.0)
     over = (R_F - 1) * t + R_P + r_temp + r_temp * (R_F / 2) + R_P + alpha
     under = r_temp * (R_F / 2) + R_P + alpha
-    binom_log = log(binomial(over, under), 2)
+    binom_log = log(comb(int(over), int(under)), 2) # comb(n, m) calculates binomial(n, m)
     if binom_log == float("inf"):
         return True
     
