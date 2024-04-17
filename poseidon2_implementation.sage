@@ -5,7 +5,7 @@
 # Circ(2 mat_4, mat_4, ..., mat_4)
 # Used in external layers.
 def mat_epsilon(field, size, mat_4):
-    block_diag_mat = block_diagonal_matrix([mat_4 for _ in range(size/4)])
+    block_diag_mat = block_diagonal_matrix([mat_4] * (size//4))
     repeat_mat = matrix(field, size, lambda i, j: mat_4[i%4, j%4])
     return block_diag_mat + repeat_mat
 
