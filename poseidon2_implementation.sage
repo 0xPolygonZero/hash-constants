@@ -12,9 +12,9 @@ def mat_epsilon(field, size, mat_4):
 # Create the matrix 1 + Diag(vec)
 # Used in internal layers.
 def mat_iota(field, size, vec):
-    const_mat = matrix(field, size, lambda i, j: 1);
+    const_mat = matrix.ones(field, size);
     diag_mat  = diagonal_matrix(field, vec);
-    return (const_mat + diag_mat)
+    return const_mat + diag_mat
 
 # Run a single external (full) round of the protocol.
 def full_round(size, mat_e, round_constant, alpha, vec):
@@ -32,37 +32,16 @@ def partial_round(size, mat_i, round_constant, alpha, vec):
     
     return mat_i*vec
 
-# Run a complete instance of the poseidon2 permutation.
-def poseidon2(field, size, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, vec):
+# Sometimes we want to work with the internal martix being the MONTY form of the true matrix. (For delayed reduction purposes)
+# This can be modelled by shifting mat_i by 2^{-32} as the MONTY constant is 2^32
+# This implements Poseidon2 in the usual way if shift is false and the shifted version if shift is true.
+def poseidon2(field, size, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, shift, vec):
     assert(gcd(alpha, field.characteristic() - 1) == 1)
     mat_e = mat_epsilon(field, size, mat_4)
-    mat_i = mat_iota(field, size, diag_vec)
-    
-    # The initial linear layer
-    output = mat_e*vec
-    
-    half_external = external_rounds/2
-    
-    # The first half of the External (full) rounds
-    for i in range(half_external):
-        output = full_round(size, mat_e, external_constants[i], alpha, output)
-    
-    # The internal (partial) rounds
-    for i in range(internal_rounds):
-        output = partial_round(size, mat_i, internal_constants[i], alpha, output)
-    
-    # The second half of the External (full) rounds
-    for i in range(half_external):
-        output = full_round(size, mat_e, external_constants[half_external + i], alpha, output)
-    
-    return output
-
-# Sometimes we want to work with the internal matrix being the MONTY form of the true matrix. (For delayed reduction purposes)
-# This can be modeled by shifting mat_i by 2^{-32} as the MONTY constant is 2^32
-def poseidon2_shifted(field, size, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, vec):
-    assert(gcd(alpha, field.characteristic() - 1) == 1)
-    mat_e = mat_epsilon(field, size, mat_4)
-    mat_i = field(2^-32) * mat_iota(field, size, diag_vec)
+    if shift:
+        mat_i = field(2^-32) * mat_iota(field, size, diag_vec)
+    else:
+        mat_i = mat_iota(field, size, diag_vec)
     
     # The initial linear layer
     output = mat_e*vec
@@ -117,24 +96,14 @@ def constants_from_seed(field, seed, power, width, external_rounds, internal_rou
     return (EXTERNAL_CONSTANTS, INTERNAL_CONSTANTS)
 
 # Generate a Poseidon2 implementation pseudo-randomly from a seed and power.
-def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, seed, power, vec):
+def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, seed, power, vec):
     assert(gcd(alpha, field.characteristic() - 1) == 1)
     
     external_rounds, internal_rounds = get_round_numbers(width, alpha)
     
     external_constants, internal_constants = constants_from_seed(field, seed, power, width, external_rounds, internal_rounds)
     
-    return poseidon2(field, width, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, vec)
-    
-
-def shifted_poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, seed, power, vec):
-    assert(gcd(alpha, field.characteristic() - 1) == 1)
-    
-    external_rounds, internal_rounds = get_round_numbers(width, alpha)
-    
-    external_constants, internal_constants = constants_from_seed(field, seed, power, width, external_rounds, internal_rounds)
-    
-    return poseidon2_shifted(field, width, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, vec)
+    return poseidon2(field, width, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, shift, vec)
 
 ### Usage examples:
 
@@ -163,7 +132,7 @@ def shifted_poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, seed, powe
 # Now generate some random inputs and run Poseidon2 width 16:
 # set_random_seed(16)
 # rand_input_M31_16 = vector([M31_FIELD.random_element() for t in range(16)])
-# rand_ouput_16 = poseidon2_from_seed(M31_FIELD, 16, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_16, M31_seed, M31_power, rand_input_M31_16)
+# rand_ouput_16 = poseidon2_from_seed(M31_FIELD, 16, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_16, False, M31_seed, M31_power, rand_input_M31_16)
 
 # We find:
 # rand_input_M31_16 = [894848333, 1437655012, 1200606629, 1690012884, 71131202, 1749206695, 1717947831, 120589055, 19776022, 42382981, 1831865506, 724844064, 171220207, 1299207443, 227047920, 1783754913]
@@ -172,7 +141,7 @@ def shifted_poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, seed, powe
 # Can do the same for Poseidon2 width 24:
 # set_random_seed(24)
 # rand_input_M31_24 = vector([M31_FIELD.random_element() for t in range(24)])
-# rand_ouput_24 = poseidon2_from_seed(M31_FIELD, 24, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_24, M31_seed, M31_power, rand_input_M31_24)
+# rand_ouput_24 = poseidon2_from_seed(M31_FIELD, 24, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_24, False, M31_seed, M31_power, rand_input_M31_24)
 
 # We get:
 # rand_input_M31_24 = [886409618, 1327899896, 1902407911, 591953491, 648428576, 1844789031, 1198336108, 355597330, 1799586834, 59617783, 790334801, 1968791836, 559272107, 31054313, 1042221543, 474748436, 135686258, 263665994, 1962340735, 1741539604, 2026927696, 449439011, 1131357108, 50869465]
