@@ -62,7 +62,7 @@ def poseidon2(field, size, external_rounds, internal_rounds, external_constants,
 def poseidon2_shifted(field, size, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, vec):
     assert(gcd(alpha, field.characteristic() - 1) == 1)
     mat_e = mat_epsilon(field, size, mat_4)
-    mat_i = ((field(2)^32)^-1) * mat_iota(field, size, diag_vec)
+    mat_i = field(2^-32) * mat_iota(field, size, diag_vec)
     
     # The initial linear layer
     output = mat_e*vec
