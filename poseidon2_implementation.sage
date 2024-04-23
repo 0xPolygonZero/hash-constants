@@ -84,24 +84,56 @@ def get_round_numbers(width, alpha):
     
     return (external_rounds, internal_rounds)
     
+# To generate constants, we want a method which recreates a PRNG in Rust.
+# To that end we recreate Xoroshiro128Plus:
+# https://docs.rs/rand_xoshiro/latest/rand_xoshiro/struct.Xoroshiro128Plus.html
 
-# Handy to have a somewhat random but deterministic method to generate constants.
-# Not for production but just for testing.
-# Good to pick power to be large but shouldn't really matter.
-def constants_from_seed(field, seed, power, width, external_rounds, internal_rounds):
-    assert(gcd(power, field.characteristic() - 1) == 1)
-    EXTERNAL_CONSTANTS = matrix(field, external_rounds, width, lambda i, j: (j + width*i + seed)**power)
-    seed2 = seed**(power**2)
-    INTERNAL_CONSTANTS = vector(matrix(field, internal_rounds, 1, lambda i, j: (i + seed2)**power))
+# For this method we need a couple of simple function which rotate a u64 left and/or right
+def rotate_right(val, r_bits, max_bits = 64):
+    return (val >> r_bits) | (val << (max_bits - r_bits) & (2**max_bits - 1))
+
+def rotate_left(val, r_bits, max_bits = 64):
+    return rotate_right(val, max_bits - r_bits, max_bits)
+
+# Using these we define a random number generator for 31 bit fields using rejection sampling. (To match the Plonky3 method.)
+# The preset valued for seed0, seed1 make this PRNG match the rust PRNG: Xoroshiro128Plus::seed_from_u64(1).
+class XOROSHIRO128PLUS:
+    def __init__(self, field, seed0 = 10451216379200822465, seed1 = 13757245211066428519):
+        self.char = field.characteristic()
+        self.seed0 = seed0
+        self.seed1 = seed1
+    
+    def __iter__(self):
+        self.s0 = self.seed0
+        self.s1 = self.seed1
+        return self
+    
+    def __next__(self):
+        while True:
+            output = ((self.s0 + self.s1) & (2**64 - 1)) >> 33
+            self.s1 ^^= self.s0
+            self.s0 = rotate_left(self.s0, 24) ^^ self.s1 ^^ ((self.s1 << 16) & (2**64 - 1))
+            self.s1 = rotate_left(self.s1, 37)
+            
+            if output < self.char:
+                return output
+
+
+# Generate internal and external constants from a given rng method.
+# Note the ordering is important so it needs to match the generation in Plonky3.
+def constants_from_seed(field, rng, width, external_rounds, internal_rounds):
+    EXTERNAL_CONSTANTS = matrix(field, external_rounds, width, lambda i, j: next(rng))
+    
+    INTERNAL_CONSTANTS = vector(matrix(field, internal_rounds, 1, lambda i, j: next(rng)))
     return (EXTERNAL_CONSTANTS, INTERNAL_CONSTANTS)
 
-# Generate a Poseidon2 implementation pseudo-randomly from a seed and power.
-def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, seed, power, vec):
-    assert(gcd(alpha, field.characteristic() - 1) == 1)
+# Generate a Poseidon2 implementation from an rng method.
+def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, rng, vec):
+    rng_iter = iter(rng)
     
     external_rounds, internal_rounds = get_round_numbers(width, alpha)
     
-    external_constants, internal_constants = constants_from_seed(field, seed, power, width, external_rounds, internal_rounds)
+    external_constants, internal_constants = constants_from_seed(field, rng, width, external_rounds, internal_rounds)
     
     return poseidon2(field, width, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, shift, vec)
 
@@ -114,35 +146,26 @@ def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, seed, power
 
 ## Start by defining the Field Constants:
 # M31_FIELD = GF(2^31 - 1)
+# M31_RNG = XOROSHIRO128PLUS(M31_FIELD)
 # M31_MAT_4 = matrix(M31_FIELD, [[2, 3, 1, 1], [1, 2, 3, 1], [1, 1, 2, 3], [3, 1, 1, 2]])
 # M31_MAT_DIAG_16 = [-2,  1,   2,   4,   8,  16,  32,  64, 128, 256, 1024, 4096, 8192, 16384, 32768, 65536]
 # M31_MAT_DIAG_24 = [-2,  1,   2,   4,   8,  16,  32,  64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304]
 # M31_ALPHA = 5
 
-# Next, generate parameters:
-# P = Primes()
-# M31_power = P.next(11111)
-# set_random_seed(11111)
-# M31_seed = M31_FIELD.random_element()
-
-# This yields:
-# M31_power = 11113
-# M31_seed = 389183646
-
 # Now generate some random inputs and run Poseidon2 width 16:
 # set_random_seed(16)
 # rand_input_M31_16 = vector([M31_FIELD.random_element() for t in range(16)])
-# rand_ouput_16 = poseidon2_from_seed(M31_FIELD, 16, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_16, False, M31_seed, M31_power, rand_input_M31_16)
+# rand_ouput_16 = poseidon2_from_seed(M31_FIELD, 16, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_16, False, M31_RNG, rand_input_M31_16)
 
 # We find:
 # rand_input_M31_16 = [894848333, 1437655012, 1200606629, 1690012884, 71131202, 1749206695, 1717947831, 120589055, 19776022, 42382981, 1831865506, 724844064, 171220207, 1299207443, 227047920, 1783754913]
-# rand_output_M31_16 = [687671392, 187739990, 474872297, 1025723782, 1958464721, 1004876398, 972043176, 1231017992, 1815473754, 997812498, 1891950360, 94240126, 1834774779, 2146393033, 1194588914, 1694651572]
+# rand_output_M31_16 = [1124552602, 2127602268, 1834113265, 1207687593, 1891161485, 245915620, 981277919, 627265710, 1534924153, 1580826924, 887997842, 1526280482, 547791593, 1028672510, 1803086471, 323071277]
 
 # Can do the same for Poseidon2 width 24:
 # set_random_seed(24)
 # rand_input_M31_24 = vector([M31_FIELD.random_element() for t in range(24)])
-# rand_ouput_24 = poseidon2_from_seed(M31_FIELD, 24, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_24, False, M31_seed, M31_power, rand_input_M31_24)
+# rand_ouput_24 = poseidon2_from_seed(M31_FIELD, 24, M31_ALPHA, M31_MAT_4, M31_MAT_DIAG_24, False, M31_RNG, rand_input_M31_24)
 
 # We get:
 # rand_input_M31_24 = [886409618, 1327899896, 1902407911, 591953491, 648428576, 1844789031, 1198336108, 355597330, 1799586834, 59617783, 790334801, 1968791836, 559272107, 31054313, 1042221543, 474748436, 135686258, 263665994, 1962340735, 1741539604, 2026927696, 449439011, 1131357108, 50869465]
-# rand_output_M31_24 = [1647982233, 532201789, 2015259638, 680414033, 1176515591, 1163262902, 2052469886, 679834118, 2079721199, 1936663286, 66010933, 593633651, 69437652, 889870443, 1128148983, 1865068789, 649133836, 1434401472, 648402879, 1081496263, 388204549, 380976594, 1146523540, 841407217]
+# rand_output_M31_24 = [87189408, 212775836, 954807335, 1424761838, 1222521810, 1264950009, 1891204592, 710452896, 957091834, 1776630156, 1091081383, 786687731, 1101902149, 1281649821, 436070674, 313565599, 1961711763, 2002894460, 2040173120, 854107426, 25198245, 1967213543, 604802266, 2086190331]
