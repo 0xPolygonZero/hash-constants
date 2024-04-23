@@ -120,7 +120,7 @@ class XOROSHIRO128PLUS:
 
 
 # Generate internal and external constants from a given rng method.
-# Note the ordering is important so it needs to match the generation in Plonky3.
+# Note the ordering is important as it needs to match the generation in Plonky3.
 def constants_from_seed(field, rng, width, external_rounds, internal_rounds):
     EXTERNAL_CONSTANTS = matrix(field, external_rounds, width, lambda i, j: next(rng))
     
@@ -130,7 +130,7 @@ def constants_from_seed(field, rng, width, external_rounds, internal_rounds):
 # Generate a Poseidon2 implementation from an rng method.
 def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, rng, vec):
     rng_iter = iter(rng)
-    
+
     external_rounds, internal_rounds = get_round_numbers(width, alpha)
     
     external_constants, internal_constants = constants_from_seed(field, rng, width, external_rounds, internal_rounds)
