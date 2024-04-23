@@ -98,10 +98,14 @@ def rotate_left(val, r_bits, max_bits = 64):
 # Using these we define a random number generator for 31 bit fields using rejection sampling. (To match the Plonky3 method.)
 # The preset valued for seed0, seed1 make this PRNG match the rust PRNG: Xoroshiro128Plus::seed_from_u64(1).
 class XOROSHIRO128PLUS:
-    def __init__(self, field, seed0 = 10451216379200822465, seed1 = 13757245211066428519):
+    def __init__(self, field, seed0 = 10451216379200822465, seed1 = 13757245211066428519, MONTY = False):
         self.char = field.characteristic()
+        self.field = field
         self.seed0 = seed0
         self.seed1 = seed1
+        # For BabyBear and KoalaBear, Plonky3 generates constants in MONTY form.
+        # This means the underlying constant is (2^-32) * the generated one.
+        self.monty = MONTY
     
     def __iter__(self):
         self.s0 = self.seed0
@@ -116,7 +120,10 @@ class XOROSHIRO128PLUS:
             self.s1 = rotate_left(self.s1, 37)
             
             if output < self.char:
-                return output
+                if self.monty:
+                    return self.field(2^-32) * output
+                else:
+                    return output
 
 
 # Generate internal and external constants from a given rng method.
@@ -137,7 +144,7 @@ def poseidon2_from_seed(field, width, alpha, mat_4, diag_vec, shift, rng, vec):
     
     return poseidon2(field, width, external_rounds, internal_rounds, external_constants, internal_constants, mat_4, diag_vec, alpha, shift, vec)
 
-### Usage examples:
+### Usage example:
 
 ###
 ### Mersenne31 Field
