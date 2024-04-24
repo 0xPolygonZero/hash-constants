@@ -99,17 +99,14 @@ def rotate_left(val, r_bits, max_bits = 64):
 # The preset valued for seed0, seed1 make this PRNG match the rust PRNG: Xoroshiro128Plus::seed_from_u64(1).
 class XOROSHIRO128PLUS:
     def __init__(self, field, seed0 = 10451216379200822465, seed1 = 13757245211066428519, MONTY = False):
-        self.char = field.characteristic()
         self.field = field
-        self.seed0 = seed0
-        self.seed1 = seed1
+        self.s0 = seed0
+        self.s1 = seed1
         # For BabyBear and KoalaBear, Plonky3 generates constants in MONTY form.
         # This means the underlying constant is (2^-32) * the generated one.
         self.monty = MONTY
     
     def __iter__(self):
-        self.s0 = self.seed0
-        self.s1 = self.seed1
         return self
     
     def __next__(self):
@@ -119,11 +116,10 @@ class XOROSHIRO128PLUS:
             self.s0 = rotate_left(self.s0, 24) ^^ self.s1 ^^ ((self.s1 << 16) & (2**64 - 1))
             self.s1 = rotate_left(self.s1, 37)
             
-            if output < self.char:
+            if output < self.field.characteristic():
                 if self.monty:
-                    return self.field(2^-32) * output
-                else:
-                    return output
+                    output *= self.field(2^-32)
+                return output
 
 
 # Generate internal and external constants from a given rng method.
