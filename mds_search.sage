@@ -89,7 +89,8 @@ def is_mds_candidate(A, noisy=False):
     submatrices of the checked matrix. Experimental results conducted on a sample
     of about 100,000 randomly generated matrices indicate that the reduced set is
     sufficient to identify good candidates for a circulant MDS matrix with very high
-    probability. By using this function, the overall process of finding a circulant MDS matrix with entries that are powers of 2 becomes significantly faster.
+    probability. By using this function, the overall process of finding a circulant MDS matrix 
+    with entries that are powers of 2 becomes significantly faster.
     '''
     
     # 1-minors are just the elements themselves
