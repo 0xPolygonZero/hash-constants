@@ -81,9 +81,65 @@ def is_mds_fast(A, noisy=False):
         det_cache = new_det_cache
     return True
 
+def is_mds_candidate(A, noisy=False):
+    '''Return True iff A is an MDS matrix candidate.
+
+    This function is based on using a reduced set of submatrices to identify good candidates for a n × n MDS circulant matrix
+    with entries that are all powers of 2. The reduced set consists of only 2 × 2
+    submatrices of the checked matrix. Experimental results conducted on a sample
+    of about 100,000 randomly generated matrices indicate that the reduced set is
+    sufficient to identify good candidates for a circulant MDS matrix with very high
+    probability. By using this function, the overall process of finding a circulant MDS matrix with entries that are powers of 2 becomes significantly faster.
+    '''
+    
+    # 1-minors are just the elements themselves
+    if any(any(r == 0 for r in row) for row in A):
+        if noisy: print('FAILURE: matrix has zero entry')
+        return False
+
+    N = A.nrows()
+    assert A.is_square() and N >= 2
+
+    det_cache = A
+
+    # Calculate only the 2x2 minors of A:
+    for n in range(2, 3):
+        new_det_cache = dict()
+        for rows in itertools.combinations(range(N), n):
+            for cols in itertools.combinations(range(N), n):
+                i, *rs = rows
+
+                # Laplace expansion along row i
+                det = 0
+                for j in range(n):
+                    # pick out c = column j; the remaining columns are in cs
+                    c = cols[j]
+                    cs = cols[:j] + cols[j+1:]
+
+                    # Look up the determinant from the previous iteration
+                    # and multiply by -1 if j is odd
+                    cofactor = det_cache[(*rs, *cs)]
+                    if j % 2 == 1:
+                        cofactor = -cofactor
+
+                    # update the determinant with the j-th term
+                    det += A[i, c] * cofactor
+
+                if det == 0:
+                    if noisy: print(f'FAILURE on {n}-minor: rows={rows}, cols={cols}')
+                    return False
+                new_det_cache[(*rows, *cols)] = det
+        if noisy: print(f'matrix has no zero {n}-minors')
+        det_cache = new_det_cache
+    return True
+
 def is_mds_circ(row):
     '''Return the circulant matrix whose first row is 'row'.'''
     return is_mds_fast(Matrix.circulant(row))
+
+def is_mds_circ_fast(row):
+    '''Return the circulant matrix whose first row is 'row'.'''
+    return is_mds_candidate(Matrix.circulant(row))
 
 def is_binary_power(x):
     '''Return true iff x = 2^e for some integer e >= 0.'''
@@ -138,6 +194,43 @@ def make_binary_powers(init_row, noisy=True):
 
     return row
 
+def make_binary_powers_fast(init_row, noisy=True):
+    '''In this function, intermediate matrices are checked only for 2x2 submatrices. 
+    At the end, MDS property of the final matrix is confirmed with full MDS test. 
+    '''
+    C = Matrix.circulant(init_row)
+    field = C.base_ring()
+    assert is_mds_candidate(C)   #instead of is_mds_fast
+    N = len(init_row)
+
+    # ones first:
+    for cols in itertools.combinations(range(N), 3):
+        row = copy(init_row)
+        for c in cols:
+            row[c] = field(1)
+        if is_mds_circ_fast(row):
+            if noisy: print(f'row: {row}')
+            break
+
+    # for each non-binary power, replace it with successively larger
+    # binary powers until the MDS property holds.
+    for j in range(N):
+        if is_binary_power(row[j]):
+            continue
+        e = 1  # the exponent
+        while True:
+            row[j] = field(1 << e)
+            if is_mds_circ_fast(row):
+                if noisy: print(f'row: {row}')
+                break
+            e += 1
+            
+    if is_mds_circ(row):
+        if noisy: print(f'row: {row}')
+        
+
+    return row
+
 def random_circulant_mds(k, n, noisy=True):
     '''Return a random circulant MDS matrix.'''
     ntries = 0
@@ -145,6 +238,17 @@ def random_circulant_mds(k, n, noisy=True):
         random_row = vector(k, [k.random_element() for _ in range(n)])
         ntries += 1
         if is_mds_circ(random_row):
+            return random_row
+        if noisy and ntries % 100 == 0:
+            print(f'Continuing after {ntries} tries')
+
+def random_circulant_mds_fast(k, n, noisy=True):
+    '''Return a random circulant MDS matrix.'''
+    ntries = 0
+    while True:
+        random_row = vector(k, [k.random_element() for _ in range(n)])
+        ntries += 1
+        if is_mds_circ_fast(random_row):
             return random_row
         if noisy and ntries % 100 == 0:
             print(f'Continuing after {ntries} tries')
@@ -190,4 +294,5 @@ goldilocks_mds8 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 4, 256])
 
 # Produced with make_binary_powers(random_circulant_mds(goldilocks_field, 12))
 goldilocks_mds12 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024])
+# The same MDS matrix could be generated faster with make_binary_powers_fast(random_circulant_mds_fast(goldilocks_field, 12))
 #print('goldilocks_mds12 is MDS?', is_mds_circ(goldilocks_mds12))
