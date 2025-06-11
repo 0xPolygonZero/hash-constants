@@ -126,7 +126,7 @@ def make_binary_powers(init_row, noisy=True, submatrix_cutoff=None):
     '''
     C = Matrix.circulant(init_row)
     field = C.base_ring()
-    assert is_mds_fast(C)
+    assert is_mds_fast(C, submatrix_cutoff=submatrix_cutoff)
     N = len(init_row)
 
     # ones first:
