@@ -26,7 +26,7 @@ def is_mds_slow(M, noisy=False):
             return False
     return True
 
-def is_mds_fast(A, noisy=False):
+def is_mds_fast(A, noisy=False, submatrix_cutoff=None):
     '''Return True iff A is an MDS matrix.
 
     This function uses a Faster algorithm to avoid lots of
@@ -38,6 +38,15 @@ def is_mds_fast(A, noisy=False):
     probably a smarter way to do this, but this algorithm basically
     just puts the mxm minors in a dictionary and looks them up when
     calculating the (m+1)x(m+1) minors.
+
+    By setting `submatrix_cutoff` to a value less than A.nrows() (but
+    always >= 2), this function will stop checking the MDS property of
+    submatrices whose size is greater than `submatrix_cutoff`,
+    drastically reducing the runtime.  When submatrix_cutoff <
+    A.nrows(), the result is not guaranteed to be MDS, however
+    experimental evidence suggests that even checking just the 2x2
+    submatrices leads to matrices with the MDS property with high
+    probability.
     '''
 
     # 1-minors are just the elements themselves
@@ -48,10 +57,16 @@ def is_mds_fast(A, noisy=False):
     N = A.nrows()
     assert A.is_square() and N >= 2
 
+    if not submatrix_cutoff:
+        submatrix_cutoff = N
+    else:
+        if submatrix_cutoff < 2 or submatrix_cutoff > N:
+            raise ValueError(f'bad submatrix_cutoff: expected between 2 and {N}, got {submatrix_cutoff}')
+
     det_cache = A
 
     # Calculate all the nxn minors of A:
-    for n in range(2, N+1):
+    for n in range(2, submatrix_cutoff+1):
         new_det_cache = dict()
         for rows in itertools.combinations(range(N), n):
             for cols in itertools.combinations(range(N), n):
@@ -81,9 +96,9 @@ def is_mds_fast(A, noisy=False):
         det_cache = new_det_cache
     return True
 
-def is_mds_circ(row):
+def is_mds_circ(row, submatrix_cutoff=None):
     '''Return the circulant matrix whose first row is 'row'.'''
-    return is_mds_fast(Matrix.circulant(row))
+    return is_mds_fast(Matrix.circulant(row), submatrix_cutoff=submatrix_cutoff)
 
 def is_binary_power(x):
     '''Return true iff x = 2^e for some integer e >= 0.'''
@@ -100,7 +115,7 @@ def next_binary_power(x, inclusive=True):
         return x
     return 1 << int(x).bit_length()
 
-def make_binary_powers(init_row, noisy=True):
+def make_binary_powers(init_row, noisy=True, submatrix_cutoff=None):
     '''Use given circulant MDS matrix to generate a circulant MDS matrix
     with entries that are powers of two.
 
@@ -119,7 +134,7 @@ def make_binary_powers(init_row, noisy=True):
         row = copy(init_row)
         for c in cols:
             row[c] = field(1)
-        if is_mds_circ(row):
+        if is_mds_circ(row, submatrix_cutoff=submatrix_cutoff):
             if noisy: print(f'row: {row}')
             break
 
@@ -131,20 +146,26 @@ def make_binary_powers(init_row, noisy=True):
         e = 1  # the exponent
         while True:
             row[j] = field(1 << e)
-            if is_mds_circ(row):
+            if is_mds_circ(row, submatrix_cutoff=submatrix_cutoff):
                 if noisy: print(f'row: {row}')
                 break
             e += 1
 
+    # If we've only been checking submatrices, do one final check
+    # on the whole matrix
+    if submatrix_cutoff is not None and submatrix_cutoff < N:
+        if is_mds_circ(row):
+            if noisy: print(f'row: {row}')
+
     return row
 
-def random_circulant_mds(k, n, noisy=True):
+def random_circulant_mds(k, n, noisy=True, submatrix_cutoff=None):
     '''Return a random circulant MDS matrix.'''
     ntries = 0
     while True:
         random_row = vector(k, [k.random_element() for _ in range(n)])
         ntries += 1
-        if is_mds_circ(random_row):
+        if is_mds_circ(random_row, submatrix_cutoff=submatrix_cutoff):
             return random_row
         if noisy and ntries % 100 == 0:
             print(f'Continuing after {ntries} tries')
@@ -190,4 +211,5 @@ goldilocks_mds8 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 4, 256])
 
 # Produced with make_binary_powers(random_circulant_mds(goldilocks_field, 12))
 goldilocks_mds12 = vector(goldilocks_field, [1, 1, 2, 1, 8, 32, 2, 256, 4096, 8, 65536, 1024])
+# Could obtain the same faster with  make_binary_powers(random_circulant_mds(goldilocks_field, 12, submatrix_cutoff=2), submatrix_cutoff=2)
 #print('goldilocks_mds12 is MDS?', is_mds_circ(goldilocks_mds12))
